@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790265558352,
+      "tag": "0000_booking_entitlements_single_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790265898933,
+      "tag": "0001_entitlement_extensions_and_dead_letters",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790613758858,
+      "tag": "0002_restaurant_access_state",
+      "breakpoints": true
+    }
+  ]
+}

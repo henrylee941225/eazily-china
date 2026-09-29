@@ -1,0 +1,1 @@
+ALTER TABLE public.concierge_tasks ADD COLUMN IF NOT EXISTS details_json jsonb;

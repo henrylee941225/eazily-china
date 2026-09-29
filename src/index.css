@@ -1,0 +1,264 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* eazilyChina design system — warm editorial travel-tech. All colors HSL. */
+
+@layer base {
+  :root {
+    /* --- Neutrals (per Knowledge §2) --- */
+    --ink: 240 5% 5%;             /* #0A0A0B */
+    --ink-soft: 240 4% 20%;
+    --surface: 0 0% 100%;         /* #FFFFFF */
+    --surface-2: 240 4% 97%;      /* #F6F6F7 */
+    --surface-3: 240 3% 95%;      /* #F3F3F4 */
+    --hairline: 0 0% 89%;         /* #E2E2E2 */
+    --text-secondary: 240 2% 44%; /* #6E6E73 */
+    --text-tertiary: 240 2% 69%;  /* #B0B0B1 */
+
+    /* Semantic background/foreground map to surface/ink */
+    --background: 0 0% 100%;
+    --foreground: 240 5% 5%;
+
+    /* --- Brand accents (restricted roles, see §2) --- */
+    --brand-red: 5 91% 45%;       /* #DE2910 — links, destructive, errors, live */
+    --brand-orange: 26 100% 50%;  /* #FF7A00 — AI concierge identity only */
+    --brand-orange-from: 22 96% 48%; /* #F56304 */
+    --brand-orange-to: 17 95% 48%;   /* #EA470A */
+    --tint-warm: 30 90% 93%;      /* #FCEDDD */
+
+    /* --- Status tokens --- */
+    --success: 150 67% 32%;       /* #1B895A */
+    --success-tint: 146 43% 93%;  /* #E7F4EE */
+    --pending: 27 99% 38%;        /* #C15E01 */
+    --pending-tint: 30 90% 93%;   /* #FCEDDD */
+    --error: 5 91% 45%;           /* #DE2910 */
+    --error-tint: 6 76% 95%;      /* #FBEAE7 */
+    --online: 150 67% 32%;
+
+    /* --- Shadcn semantic tokens (mapped to system) --- */
+    --card: 0 0% 100%;
+    --card-foreground: 240 5% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 5% 5%;
+    --primary: 240 5% 5%;                /* ink for primary buttons */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 4% 97%;             /* surface-2 */
+    --secondary-foreground: 240 5% 5%;
+    --muted: 240 4% 97%;
+    --muted-foreground: 240 2% 44%;
+    --accent: 240 4% 97%;
+    --accent-foreground: 240 5% 5%;
+    --destructive: 5 91% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 89%;
+    --input: 240 4% 97%;
+    --ring: 240 5% 5%;
+
+    --radius: 1rem;
+
+    /* --- Legacy aliases (keep existing pages compiling) --- */
+    --cream: 0 0% 100%;
+    --cream-warm: 240 4% 97%;
+    --vermilion: 5 91% 45%;
+    --vermilion-deep: 5 91% 38%;
+    --vermilion-glow: 5 91% 55%;
+    --gold: 38 75% 58%;
+    --jade: 150 67% 32%;
+
+    /* Gradients (concierge/AI only use orange; others neutral) */
+    --gradient-vermilion: linear-gradient(135deg, hsl(var(--brand-red)), hsl(var(--brand-red) / 0.85));
+    --gradient-ink: linear-gradient(180deg, hsl(var(--ink)) 0%, hsl(240 5% 12%) 100%);
+    --gradient-glow: radial-gradient(60% 60% at 50% 0%, hsl(var(--brand-orange) / 0.18) 0%, transparent 70%);
+    --gradient-cream: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface-2)) 100%);
+    --gradient-hero: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface-2)) 100%);
+    --gradient-soft: linear-gradient(180deg, hsl(var(--surface)) 0%, hsl(var(--surface-2)) 100%);
+    --gradient-ai: linear-gradient(135deg, hsl(var(--brand-orange-from)), hsl(var(--brand-orange-to)));
+    --gradient-ai-dark: linear-gradient(180deg, hsl(var(--ink)) 0%, hsl(240 5% 12%) 100%);
+
+    /* Flat by default — only elevate the floating nav & bottom sheets */
+    --shadow-elegant: 0 20px 60px -30px hsl(0 0% 0% / 0.25);
+    --shadow-soft: 0 8px 24px -12px hsl(0 0% 0% / 0.12);
+    --shadow-card: 0 1px 0 0 hsl(var(--hairline));
+    --shadow-nav: 0 12px 32px -12px hsl(0 0% 0% / 0.18);
+    --shadow-sheet: 0 -12px 40px -8px hsl(0 0% 0% / 0.18);
+    --shadow-glow: 0 8px 24px -8px hsl(var(--brand-red) / 0.28);
+    --shadow-glow-cyan: 0 0 0 1px hsl(var(--hairline));
+    --shadow-glow-violet: 0 0 0 1px hsl(var(--hairline));
+
+    --ai-cyan: 26 100% 50%;
+    --ai-violet: 26 100% 50%;
+    --ai-grid: 0 0% 89%;
+
+    --font-display: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    --font-body: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
+    --font-cn: 'Hanken Grotesk', system-ui, sans-serif;
+
+    --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 240 5% 5%;
+    --foreground: 0 0% 100%;
+    --card: 240 5% 8%;
+    --card-foreground: 0 0% 100%;
+    --popover: 240 5% 8%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 0 0% 100%;
+    --primary-foreground: 240 5% 5%;
+    --secondary: 240 4% 12%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 240 4% 12%;
+    --muted-foreground: 240 2% 69%;
+    --accent: 240 4% 12%;
+    --accent-foreground: 0 0% 100%;
+    --border: 240 4% 18%;
+    --input: 240 4% 12%;
+    --ring: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+    font-feature-settings: "ss01", "ss02";
+  }
+  ::selection { background: hsl(var(--ink)); color: hsl(var(--surface)); }
+}
+
+@layer components {
+  .font-display { font-family: var(--font-display); font-optical-sizing: auto; }
+  .font-cn { font-family: var(--font-cn); }
+
+  button svg,
+  a svg,
+  [role="button"] svg {
+    min-width: 1.25rem;
+    min-height: 1.25rem;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-background/60 px-3 py-1 text-xs uppercase tracking-[0.18em] text-foreground/70 backdrop-blur;
+  }
+}
+
+@layer utilities {
+  .bg-vermilion { background: hsl(var(--vermilion)); }
+  .text-vermilion { color: hsl(var(--vermilion)); }
+  .bg-ink { background: hsl(var(--ink)); }
+  .text-ink { color: hsl(var(--ink)); }
+  .bg-cream { background: hsl(var(--cream)); }
+  .text-cream { color: hsl(var(--cream)); }
+  .bg-gradient-vermilion { background-image: var(--gradient-vermilion); }
+  .bg-gradient-ink { background-image: var(--gradient-ink); }
+  .bg-gradient-cream { background-image: var(--gradient-cream); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .shadow-soft { box-shadow: var(--shadow-soft); }
+  .text-balance { text-wrap: balance; }
+
+  @keyframes ai-scan {
+    0% { transform: translateY(-100%); opacity: 0; }
+    20% { opacity: 0.7; }
+    100% { transform: translateY(100%); opacity: 0; }
+  }
+  @keyframes ai-pulse-ring {
+    0% { transform: scale(0.6); opacity: 0.7; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  @keyframes ai-shimmer {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  @keyframes ai-marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .ai-scan-line {
+    background: linear-gradient(180deg, transparent, hsl(var(--vermilion) / 0.5), transparent);
+    animation: ai-scan 3.2s linear infinite;
+  }
+  .ai-pulse-ring { animation: ai-pulse-ring 2.4s ease-out infinite; }
+  .ai-shimmer-text {
+    background: linear-gradient(90deg, hsl(var(--vermilion)), hsl(var(--gold)), hsl(var(--vermilion)));
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: ai-shimmer 3s ease-in-out infinite;
+  }
+  .ai-marquee { animation: ai-marquee 32s linear infinite; width: max-content; }
+}
+
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes float-y { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.animate-float { animation: float-y 6s ease-in-out infinite; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fade-up { animation: fade-up 0.9s var(--ease-out-soft) both; }
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--vermilion) / 0.5); }
+  50% { box-shadow: 0 0 0 14px hsl(var(--vermilion) / 0); }
+}
+.animate-pulse-glow { animation: pulse-glow 2.4s ease-out infinite; }
+
+/* Concierge chat "assistant typing" three-dot indicator. */
+@keyframes typing-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40% { transform: translateY(-3px); opacity: 1; }
+}
+.animate-typing-dot { animation: typing-dot 1.2s ease-in-out infinite; }
+
+/* iOS safe-area helpers — only have effect on devices that expose env() insets
+   (iPhone with notch when installed as PWA / fullscreen). No-op in regular
+   desktop browsers, so layouts elsewhere are unchanged. */
+@supports (padding: max(0px)) {
+  .pt-safe { padding-top: max(env(safe-area-inset-top), 0px); }
+  .pb-safe { padding-bottom: max(env(safe-area-inset-bottom), 0px); }
+  .pl-safe { padding-left: max(env(safe-area-inset-left), 0px); }
+  .pr-safe { padding-right: max(env(safe-area-inset-right), 0px); }
+  .px-safe {
+    padding-left: max(env(safe-area-inset-left), 0px);
+    padding-right: max(env(safe-area-inset-right), 0px);
+  }
+  /* Adds the inset on top of an existing padding value. */
+  .pt-safe-3 { padding-top: calc(env(safe-area-inset-top) + 0.75rem); }
+  .pt-safe-4 { padding-top: calc(env(safe-area-inset-top) + 1rem); }
+  .pt-safe-6 { padding-top: calc(env(safe-area-inset-top) + 1.5rem); }
+}
+
+/* Hide scrollbar inside the bottom sheet (visual only — still scrollable). */
+.sheet-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.sheet-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ─── Floating-nav layout convention ────────────────────────────────────────
+   Every screen that renders the floating BottomTabBar shares one bottom inset
+   so page content and sticky CTAs never sit under the nav.
+
+   --nav-inset      = safe-area + nav container height + halo for the raised
+                      centre concierge button + a small breathing margin.
+   --nav-cta-inset  = --nav-inset + a standard CTA-bar height (~52px + padding).
+
+   Utility classes:
+     .pb-with-nav      → scroll padding when only the nav is present
+     .pb-with-nav-cta  → scroll padding when a sticky CTA sits above the nav
+     .bottom-above-nav → position: fixed bottom offset for that sticky CTA
+
+   Screens without the nav (wizard, auth, PreTrip) use .pb-safe instead. */
+:root {
+  --nav-inset: calc(env(safe-area-inset-bottom) + 6.25rem);
+  --nav-cta-inset: calc(env(safe-area-inset-bottom) + 11rem);
+}
+.pb-with-nav { padding-bottom: var(--nav-inset); }
+.pb-with-nav-cta { padding-bottom: var(--nav-cta-inset); }
+.bottom-above-nav { bottom: var(--nav-inset); }

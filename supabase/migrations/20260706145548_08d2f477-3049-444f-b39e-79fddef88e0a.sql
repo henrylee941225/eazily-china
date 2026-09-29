@@ -1,0 +1,1 @@
+ALTER TYPE public.concierge_task_category ADD VALUE IF NOT EXISTS 'transfer';

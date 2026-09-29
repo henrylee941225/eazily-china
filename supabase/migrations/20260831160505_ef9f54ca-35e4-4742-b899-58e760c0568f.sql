@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.concierge_tasks_notify_event() FROM PUBLIC, anon, authenticated;

@@ -1,0 +1,27 @@
+project_id = "jraltaobsyrnoaeugkho"
+
+[functions]
+  [functions.auth-email-hook]
+    verify_jwt = false
+  [functions.create-pass-checkout]
+    verify_jwt = false
+  [functions.create-task-checkout]
+    verify_jwt = false
+  [functions.daily-picks]
+    verify_jwt = false
+  [functions.fx-check]
+    verify_jwt = false
+  [functions.mapkit-token]
+    verify_jwt = false
+  [functions.payments-webhook]
+    verify_jwt = false
+  [functions.pick-image]
+    verify_jwt = false
+  [functions.process-email-queue]
+    verify_jwt = true
+  [functions.revenuecat-webhook]
+    verify_jwt = false
+  [functions.transcribe]
+    verify_jwt = false
+  [functions.translate]
+    verify_jwt = false
