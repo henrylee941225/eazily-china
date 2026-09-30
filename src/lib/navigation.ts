@@ -178,7 +178,7 @@ function cleanInstruction(raw: string): string {
     .trim();
 }
 
-// Strip MapKit's verbose tail ("and continue for X metres", "for X km", etc).
+// Strip verbose instruction tails ("and continue for X metres", "for X km", etc).
 export function instructionShort(step: NavStep): string {
   const text = cleanInstruction(step.instructions);
   // Cut at first " and continue", " and proceed", " then "

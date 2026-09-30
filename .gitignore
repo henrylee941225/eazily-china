@@ -10,7 +10,18 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-native
+/docs/
 *.local
+
+# Native projects and local signing configuration
+/android/
+/ios/
+**/xcuserdata/
+*.keystore
+*.jks
+*.mobileprovision
+*.p12
 
 # Environment configuration
 .env

@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/AppLayout";
 import { useCity } from "@/contexts/CityContext";
+import { isCapacitorApp, openExternalUrl } from "@/integrations/capacitor";
 import { Plane, Train, ArrowUpRight, Sparkles, Gem, Building2, PiggyBank, Users, Briefcase, Heart } from "lucide-react";
 
 const SID = "2336054"; // Trip.com partner ref slot — replace if you have your own
@@ -67,6 +68,11 @@ const buildFlightsUrl = (cityId: string) => {
 // The hotels themed pages already trigger Trip.com's universal-link banner,
 // but /flights/* and /trains/* don't — so we wire it up explicitly.
 const openTripcom = (webUrl: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+  if (isCapacitorApp()) {
+    e.preventDefault();
+    void openExternalUrl(webUrl);
+    return;
+  }
   // Desktop browsers should just go to the web — no app to open.
   const ua = navigator.userAgent;
   const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);

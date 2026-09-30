@@ -67,6 +67,7 @@ import { IOSInstallBanner } from "./components/IOSInstallBanner";
 import { WelcomeSync } from "./components/WelcomeSync";
 import { ConciergeLauncherProvider } from "./components/concierge/ConciergeLauncher";
 import { TRANSFERS_ENABLED } from "@/lib/featureFlags";
+import { NativeAppLifecycle } from "@/components/NativeAppLifecycle";
 
 const queryClient = new QueryClient();
 
@@ -74,6 +75,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <BrowserRouter>
+        <NativeAppLifecycle />
         <AuthProvider>
           <CurrencyProvider>
             <CityProvider>

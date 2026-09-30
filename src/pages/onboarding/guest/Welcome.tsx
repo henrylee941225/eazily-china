@@ -224,7 +224,7 @@ const Welcome = () => {
 
   return (
     <div className="min-h-[100dvh] bg-white pt-safe">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[440px] flex-col px-5 pb-safe">
+      <div className="mx-auto flex min-h-[calc(100dvh-env(safe-area-inset-top,0px))] w-full max-w-[440px] flex-col px-5 pb-safe">
         {/* Pastel preview card */}
         <div
           key={slide.id}

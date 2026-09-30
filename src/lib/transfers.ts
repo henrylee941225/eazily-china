@@ -57,7 +57,7 @@ export type TransferDetails = {
   notes?: string;
   pickup_at: string;                 // ISO date-time
   pickup_address?: string;
-  // Extended pickup fields written when the user picks a MapKit suggestion
+  // Extended pickup fields written when the user picks a place suggestion
   // for the pickup address. `pickup_address` remains the human-readable
   // string ops sees on the queue; the fields below let downstream (driver
   // hand-off) show the resolved address and drop an accurate pin.
@@ -65,7 +65,7 @@ export type TransferDetails = {
   pickup_lat?: number;
   pickup_lng?: number;
   dropoff_address?: string;
-  // Extended drop-off fields written when the user picks a MapKit
+  // Extended drop-off fields written when the user picks a place
   // suggestion for the drop-off address (e.g. From-airport / From-station).
   dropoff_address_full?: string;
   dropoff_lat?: number;

@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Configure RevenueCat with the Supabase user id as the app user id, and
-  // again whenever the signed-in user changes. No-op outside the Median app.
+  // again whenever the signed-in user changes. No-op outside native wrappers.
   useEffect(() => {
     void configureRevenueCat(user?.id ?? null);
   }, [user?.id]);

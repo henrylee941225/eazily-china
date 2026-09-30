@@ -2,17 +2,15 @@
 //
 // Mainland China map providers (AutoNavi/Amap, Apple's China tiles, Baidu's
 // intermediate step) render on GCJ-02, a state-mandated offset of WGS-84.
-// The browser's Geolocation API always returns WGS-84. Rendering a raw
-// WGS-84 point on a GCJ-02 basemap produces a visible offset (tens to
-// hundreds of metres). Convert user positions to GCJ-02 before rendering
-// or sending them to Amap.
+// GPS returns WGS-84. Existing app/search/routing coordinates use GCJ-02
+// in mainland China; MapTiler rendering converts them back to WGS-84.
 //
 // Algorithm: the widely published EVIL_TRANSFORM formula. Applied only to
 // coordinates inside the mainland-China bounding box; points outside are
 // returned unchanged (Hong Kong, Macau, Taiwan use WGS-84).
 
 const A = 6378245.0;
-const EE = 0.00669342162296594323;
+const EE = 0.006693421622965943;
 const PI = Math.PI;
 
 export type LatLng = { latitude: number; longitude: number };
@@ -68,4 +66,21 @@ export const wgs84ToGcj02 = (coord: LatLng): LatLng => {
   const finalLat = (dLat * 180.0) / (((A * (1 - EE)) / (magic * sqrtMagic)) * PI);
   const finalLng = (dLng * 180.0) / ((A / sqrtMagic) * Math.cos(radLat) * PI);
   return { latitude: latitude + finalLat, longitude: longitude + finalLng };
+};
+
+/** Invert the offset iteratively, preserving coordinates outside China. */
+export const gcj02ToWgs84 = (coord: LatLng): LatLng => {
+  if (!isInsideMainlandChina(coord)) return coord;
+  let result = { ...coord };
+  for (let i = 0; i < 10; i++) {
+    const projected = wgs84ToGcj02(result);
+    const latitudeError = projected.latitude - coord.latitude;
+    const longitudeError = projected.longitude - coord.longitude;
+    result = {
+      latitude: result.latitude - latitudeError,
+      longitude: result.longitude - longitudeError,
+    };
+    if (Math.max(Math.abs(latitudeError), Math.abs(longitudeError)) < 1e-9) break;
+  }
+  return result;
 };

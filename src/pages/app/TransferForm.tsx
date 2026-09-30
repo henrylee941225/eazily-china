@@ -108,7 +108,7 @@ const TransferFormInner = ({
   );
   const [pickupAddress, setPickupAddress] = useState("");
   const [dropoffAddress, setDropoffAddress] = useState("");
-  // Extra fields captured when the user picks a MapKit suggestion for
+  // Extra fields captured when the user picks a place suggestion for
   // the pickup address. Free-text edits clear these back to null.
   const [pickupResolved, setPickupResolved] = useState<PickupResolved | null>(null);
   const [dropoffResolved, setDropoffResolved] = useState<PickupResolved | null>(null);
@@ -194,7 +194,7 @@ const TransferFormInner = ({
   const [submitting, setSubmitting] = useState(false);
 
   // Direction toggle for airport / station: swap the free-text address
-  // (and any resolved MapKit selection) between the pickup and drop-off
+  // (and any resolved place selection) between the pickup and drop-off
   // slots so the traveller's typed text follows them across the flip
   // instead of silently ending up in the wrong details_json field.
   const changeDirection = (next: TransferDirection) => {

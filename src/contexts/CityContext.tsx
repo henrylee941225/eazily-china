@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CITIES, DEFAULT_CITY, getCityById, type CityData } from "@/data/cities";
+import { getCurrentLocation } from "@/integrations/capacitor/geolocation";
 
 type CityContextValue = {
   city: CityData;
@@ -21,12 +22,12 @@ export const CityProvider = ({ children }: { children: ReactNode }) => {
     setCityId(id);
   };
 
-  // Auto-detect nearest supported city via browser geolocation on first load.
+  // Share the platform location provider with the map to avoid a second WebView prompt.
   useEffect(() => {
-    if (typeof navigator === "undefined" || !("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition(
+    let cancelled = false;
+    void getCurrentLocation({ enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }).then(
       (pos) => {
-        if (userOverrideRef.current) return;
+        if (cancelled || userOverrideRef.current) return;
         const { latitude, longitude } = pos.coords;
         // Find nearest city by haversine distance
         let bestId = DEFAULT_CITY.id;
@@ -50,10 +51,10 @@ export const CityProvider = ({ children }: { children: ReactNode }) => {
         if (bestDist < 500) setCityId(bestId);
       },
       () => {
-        // ignore — keep default city
+        // Keep the selected city when location is unavailable.
       },
-      { enableHighAccuracy: false, timeout: 6000, maximumAge: 5 * 60 * 1000 }
     );
+    return () => { cancelled = true; };
   }, []);
 
   const value = useMemo<CityContextValue>(

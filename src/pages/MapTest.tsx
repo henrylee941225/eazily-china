@@ -6,7 +6,6 @@ import {
   LocateFixed,
   Loader2,
   X,
-  Bookmark,
   MapPin,
   Utensils,
   Hotel,
@@ -16,54 +15,42 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
-import AppleMap, {
-  type AppleMapHandle,
+import ECMap, {
+  type ECMapHandle,
   type Place,
   type AutocompleteSuggestion,
-} from "@/components/AppleMap";
+} from "@/components/ECMap";
 import { BottomTabBar } from "@/components/BottomTabBar";
 import { PlaceSheet } from "@/components/PlaceSheet";
-import { SavedPlacesSheet } from "@/components/SavedPlacesSheet";
 import { DrawerBranch } from "@/components/ui/non-modal-drawer";
-import { useSavedPlaces, type SavedPlace } from "@/lib/savedPlaces";
-
-import { getCategoryVisual } from "@/lib/categoryVisuals";
+import { getAmapCityCode } from "@/lib/amapCities";
 import { useCity } from "@/contexts/CityContext";
-
-// Map internal city id -> Amap `city` param for transit routing.
-// Defaults to Shanghai when the id is not in the mainland-China set.
-const CITY_CODE: Record<string, string> = {
-  shanghai: "021",
-  beijing: "010",
-  xian: "029",
-  chengdu: "028",
-  guangzhou: "020",
-  shenzhen: "0755",
-  hangzhou: "0571",
-  suzhou: "0512",
-};
 
 type Chip = { icon: LucideIcon; label: string; query: string; glyph: string; color: string };
 
 const CHIPS: Chip[] = [
-  { icon: Utensils, label: "Food", query: "restaurants", glyph: "F", color: "#E63946" },
-  { icon: Hotel, label: "Hotels", query: "hotels", glyph: "H", color: "#C9617A" },
-  { icon: Landmark, label: "Attractions", query: "tourist attractions", glyph: "★", color: "#D4A33E" },
-  { icon: TrainFront, label: "Transport", query: "metro station", glyph: "M", color: "#3A6B7D" },
-  { icon: ShoppingBag, label: "Shopping", query: "shopping mall", glyph: "S", color: "#7B5B8E" },
+  { icon: Utensils, label: "Food", query: "餐厅", glyph: "F", color: "#E63946" },
+  { icon: Hotel, label: "Hotels", query: "酒店", glyph: "H", color: "#C9617A" },
+  { icon: Landmark, label: "Attractions", query: "景点", glyph: "★", color: "#D4A33E" },
+  { icon: TrainFront, label: "Transport", query: "地铁站", glyph: "M", color: "#3A6B7D" },
+  { icon: ShoppingBag, label: "Shopping", query: "商场", glyph: "S", color: "#7B5B8E" },
 ];
 
 export default function MapTest() {
-  const mapRef = useRef<AppleMapHandle>(null);
+  const mapRef = useRef<ECMapHandle>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQueryRef = useRef<string | null>(null);
-  const { cityId } = useCity();
-  const cityCode = CITY_CODE[cityId] ?? "021";
+  const { cityId, city } = useCity();
+  const cityCode = getAmapCityCode(cityId) ?? "021";
+  const poiCityCode = getAmapCityCode(cityId);
   const [activeChip, setActiveChip] = useState<string | null>(null);
   const [queryText, setQueryText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const debounceRef = useRef<number | null>(null);
   const autocompleteDebounceRef = useRef<number | null>(null);
+  const searchVersionRef = useRef(0);
+  const autocompleteVersionRef = useRef(0);
+  const suppressTextSearchRef = useRef(false);
   const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const suppressAutocompleteRef = useRef(false);
@@ -73,11 +60,7 @@ export default function MapTest() {
   const [userCoord, setUserCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const activeChipRef = useRef<string | null>(null);
   activeChipRef.current = activeChip;
-  const [savedOpen, setSavedOpen] = useState(false);
-  const [showTooltip, setShowTooltip] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-  const { savedPlaces } = useSavedPlaces();
-  const savedCount = savedPlaces.length;
 
   // Handle a `?q=...` deep-link: seed the search box, run the shared
   // autocomplete, and open the top result exactly like a manual pick.
@@ -89,7 +72,8 @@ export default function MapTest() {
 
     // Show the query in the search bar without triggering the debounced
     // text-search or opening the autocomplete dropdown.
-    suppressAutocompleteRef.current = true;
+    suppressAutocompleteRef.current = queryText !== q;
+    suppressTextSearchRef.current = queryText !== q;
     setQueryText(q);
     setShowSuggestions(false);
 
@@ -116,31 +100,14 @@ export default function MapTest() {
         console.warn("[map] deep-link search failed", e);
       }
     })();
-  }, [searchParams, setSearchParams]);
-
-  const handleSavedSelect = (sp: SavedPlace) => {
-    setSavedOpen(false);
-    const chip = CHIPS.find((c) => c.label === sp.category);
-    const place: Place = {
-      name: sp.name,
-      formattedAddress: sp.address,
-      coordinate: { latitude: sp.latitude, longitude: sp.longitude },
-    };
-    mapRef.current?.showSinglePlace(
-      place,
-      chip?.glyph,
-      getCategoryVisual(sp.category).color,
-    );
-    mapRef.current?.centerOn(sp.latitude, sp.longitude, 2000);
-    setSelectedCategory(sp.category);
-    setSelectedPlace(place);
-  };
+  }, [searchParams, setSearchParams, queryText]);
 
   const runSearch = async (
     query: string,
     options?: { glyph?: string; clusterId?: string; color?: string },
   ) => {
     if (!query.trim()) return;
+    const version = ++searchVersionRef.current;
     setIsSearching(true);
     try {
       const count =
@@ -149,13 +116,16 @@ export default function MapTest() {
           clusterId: options?.clusterId,
           color: options?.color,
         })) ?? 0;
-      if (count === 0) {
+      if (version === searchVersionRef.current && count === 0) {
         toast("No places found nearby", { duration: 3000 });
       }
     } catch (e) {
-      console.error("search failed", e);
+      if (version === searchVersionRef.current) {
+        console.error("search failed", e);
+        toast("Place search is unavailable. Please try again.", { duration: 3000 });
+      }
     } finally {
-      setIsSearching(false);
+      if (version === searchVersionRef.current) setIsSearching(false);
     }
   };
 
@@ -169,6 +139,10 @@ export default function MapTest() {
 
   // Debounce text-input searches (chip taps bypass via direct runSearch)
   useEffect(() => {
+    if (suppressTextSearchRef.current) {
+      suppressTextSearchRef.current = false;
+      return;
+    }
     if (!queryText.trim()) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     debounceRef.current = window.setTimeout(() => {
@@ -177,11 +151,12 @@ export default function MapTest() {
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryText]);
 
   const handleChipTap = (chip: Chip) => {
     if (activeChip === chip.label) {
+      searchVersionRef.current++;
+      setIsSearching(false);
       setActiveChip(null);
       mapRef.current?.clearAnnotations();
       return;
@@ -191,6 +166,7 @@ export default function MapTest() {
   };
 
   const handleClear = () => {
+    autocompleteVersionRef.current++;
     setQueryText("");
     setSuggestions([]);
     setShowSuggestions(false);
@@ -199,6 +175,7 @@ export default function MapTest() {
   // Debounced autocomplete (separate from full text search on Enter)
   useEffect(() => {
     const q = queryText.trim();
+    const version = ++autocompleteVersionRef.current;
     if (autocompleteDebounceRef.current) window.clearTimeout(autocompleteDebounceRef.current);
     if (suppressAutocompleteRef.current) {
       suppressAutocompleteRef.current = false;
@@ -210,12 +187,17 @@ export default function MapTest() {
       return;
     }
     autocompleteDebounceRef.current = window.setTimeout(async () => {
-      const results = (await mapRef.current?.autocomplete(q)) ?? [];
-      if (results.length > 0) {
+      try {
+        const results = (await mapRef.current?.autocomplete(q)) ?? [];
+        if (version !== autocompleteVersionRef.current) return;
         setSuggestions(results.slice(0, 6));
-        setShowSuggestions(true);
+        setShowSuggestions(results.length > 0);
+      } catch (error) {
+        if (version !== autocompleteVersionRef.current) return;
+        console.warn("Place suggestions failed", error);
+        setSuggestions([]);
+        setShowSuggestions(false);
       }
-      // If empty, keep previous suggestions to avoid flicker
     }, 250);
     return () => {
       if (autocompleteDebounceRef.current) window.clearTimeout(autocompleteDebounceRef.current);
@@ -244,12 +226,19 @@ export default function MapTest() {
   const handleSuggestionPick = async (s: AutocompleteSuggestion) => {
     const title = s.displayLines[0] ?? "";
     // Close the dropdown immediately and keep it closed when queryText updates
-    suppressAutocompleteRef.current = true;
+    suppressAutocompleteRef.current = queryText !== title;
+    suppressTextSearchRef.current = queryText !== title;
+    autocompleteVersionRef.current++;
     setShowSuggestions(false);
     setSuggestions([]);
     setQueryText(title);
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    const place = await mapRef.current?.resolveSuggestion(s);
+    let place: Place | null | undefined;
+    try {
+      place = await mapRef.current?.resolveSuggestion(s);
+    } catch (error) {
+      console.warn("Place resolution failed", error);
+    }
     if (!place || !place.coordinate) {
       toast("Couldn't open this place", { duration: 2500 });
       return;
@@ -273,11 +262,13 @@ export default function MapTest() {
     >
       {/* Full-screen map area */}
       <DrawerBranch className="flex-1 relative min-h-0">
-        <AppleMap
+        <ECMap
           ref={mapRef}
           onPlaceSelect={handlePlaceSelect}
           onUserLocation={setUserCoord}
+          fallbackCenter={{ latitude: city.center[0], longitude: city.center[1] }}
           cityCode={cityCode}
+          poiCityCode={poiCityCode}
         />
 
         {/* Floating search bar */}
@@ -395,45 +386,6 @@ export default function MapTest() {
           </div>
         </div>
 
-        {/* Saved places button */}
-        <button
-          type="button"
-          aria-label="Saved places"
-          onClick={() => {
-            setSavedOpen(true);
-            setShowTooltip(false);
-          }}
-          className={`absolute z-10 h-11 w-11 rounded-full bg-surface-elevated shadow-lg flex items-center justify-center transition-opacity duration-300 ${
-            isNavigating ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
-          style={{ bottom: 80, right: 16 }}
-        >
-          <Bookmark className="h-5 w-5 text-ink" />
-          {savedCount > 0 && (
-            <span
-              className="absolute -top-1 -right-1 h-[18px] min-w-[18px] px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center bg-primary"
-            >
-              {savedCount > 12 ? "12+" : savedCount}
-            </span>
-          )}
-        </button>
-
-        {/* First-save tooltip pointing at the saved-places button */}
-        {showTooltip && (
-          <button
-            type="button"
-            onClick={() => setShowTooltip(false)}
-            className="absolute z-20 max-w-[220px] rounded-xl bg-ink text-white text-xs font-medium px-3 py-2 shadow-xl text-left"
-            style={{ bottom: 86, right: 72 }}
-          >
-            Find your saved places here anytime
-            <span
-              className="absolute right-[-6px] top-1/2 -translate-y-1/2 h-3 w-3 rotate-45 bg-ink"
-              aria-hidden
-            />
-          </button>
-        )}
-
         {/* Recenter button */}
         <button
           type="button"
@@ -461,15 +413,7 @@ export default function MapTest() {
         userCoord={userCoord}
         mapHandle={mapRef.current}
         onClose={() => setSelectedPlace(null)}
-        onFirstSave={() => setShowTooltip(true)}
         onNavigatingChange={setIsNavigating}
-      />
-
-      <SavedPlacesSheet
-        open={savedOpen}
-        onOpenChange={setSavedOpen}
-        userCoord={userCoord}
-        onSelect={handleSavedSelect}
       />
     </div>
   );

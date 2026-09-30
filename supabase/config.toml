@@ -11,7 +11,7 @@ project_id = "jraltaobsyrnoaeugkho"
     verify_jwt = false
   [functions.fx-check]
     verify_jwt = false
-  [functions.mapkit-token]
+  [functions.amap-poi]
     verify_jwt = false
   [functions.payments-webhook]
     verify_jwt = false

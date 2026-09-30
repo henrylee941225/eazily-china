@@ -1,4 +1,4 @@
-// Text field with MapKit-backed suggestions used across the three
+// Text field with AMap-backed suggestions used across the three
 // transfer flows (Airport, Station, Hourly). Free-text is always
 // accepted; search failures degrade silently to a plain input.
 //
@@ -9,16 +9,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, MapPin } from "lucide-react";
-import {
-  searchAutocomplete,
-  resolvePlace,
-  type AutocompleteSuggestion,
-} from "@/lib/mapkitSearch";
+import { useCity } from "@/contexts/CityContext";
+import { getAmapCityCode } from "@/lib/amapCities";
+import { resolveAmapSuggestion, searchAmapSuggestions } from "@/lib/amapPoiSearch";
+import type { AutocompleteSuggestion } from "@/lib/mapTypes";
 import { toast } from "sonner";
 
 export type PickupResolved = {
   address: string;         // what we show in the field / write to pickup_address
-  address_full?: string;   // full formatted address if MapKit returned one
+  address_full?: string;   // full formatted address when the provider returns one
   lat?: number;
   lng?: number;
 };
@@ -40,6 +39,7 @@ export const PickupAutocomplete = ({
   className,
   autoFocus,
 }: Props) => {
+  const { city } = useCity();
   const [items, setItems] = useState<AutocompleteSuggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -60,7 +60,11 @@ export const PickupAutocomplete = ({
     setSearching(true);
     const t = setTimeout(async () => {
       try {
-        const results = await searchAutocomplete(q, { signal: ctrl.signal });
+        const results = await searchAmapSuggestions(q, {
+          center: { latitude: city.center[0], longitude: city.center[1] },
+          city: getAmapCityCode(city.id),
+          signal: ctrl.signal,
+        });
         if (ctrl.signal.aborted) return;
         setItems(results.slice(0, 6));
       } catch {
@@ -73,13 +77,13 @@ export const PickupAutocomplete = ({
       ctrl.abort();
       clearTimeout(t);
     };
-  }, [value]);
+  }, [value, city]);
 
   const pick = async (s: AutocompleteSuggestion) => {
     const key = s.displayLines.join("|");
     setResolvingKey(key);
     try {
-      const place = await resolvePlace(s);
+      const place = await resolveAmapSuggestion(s);
       const name =
         place?.name || place?.formattedAddress || s.displayLines[0] || "";
       if (!place?.coordinate) {

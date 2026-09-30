@@ -3,8 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { Drawer } from "@/components/ui/non-modal-drawer";
 import {
   Navigation,
-  Bookmark,
-  BookmarkCheck,
   Share2,
   Copy,
   Phone,
@@ -28,7 +26,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { AppleMapHandle, Place, RouteMode, RouteResult } from "@/components/AppleMap";
+import type { ECMapHandle, Place, RouteMode, RouteResult } from "@/components/ECMap";
 import { useAuth } from "@/contexts/AuthContext";
 import { getCategoryVisual } from "@/lib/categoryVisuals";
 import {
@@ -44,12 +42,8 @@ import {
   type ManeuverType,
 } from "@/lib/navigation";
 import * as voice from "@/lib/voice";
-import {
-  useSavedPlaces,
-  generateId,
-  hasSeenSavedTooltip,
-  markSavedTooltipSeen,
-} from "@/lib/savedPlaces";
+import { wgs84ToGcj02 } from "@/lib/geoDatum";
+import { watchLocation } from "@/integrations/capacitor/geolocation";
 
 const SNAP_POINTS = [0.15, 0.5, 0.95];
 
@@ -83,7 +77,7 @@ function formatDuration(sec: number) {
 }
 
 /**
- * Clean up a MapKit-formatted address for display.
+ * Clean up a provider-formatted address for display.
  * - Splits on commas
  * - Removes any segment that is (or contains) the place name
  * - Removes near-duplicate consecutive segments
@@ -110,23 +104,21 @@ type Props = {
   place: Place | null;
   category: string | null;
   userCoord: { latitude: number; longitude: number } | null;
-  mapHandle: AppleMapHandle | null;
+  mapHandle: ECMapHandle | null;
   onClose: () => void;
-  onFirstSave?: () => void;
   onNavigatingChange?: (isNavigating: boolean) => void;
 };
 
-export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onFirstSave, onNavigatingChange }: Props) {
+export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onNavigatingChange }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isSaved, toggle } = useSavedPlaces();
   const [snap, setSnap] = useState<number | string | null>(SNAP_POINTS[0]);
   const [view, setView] = useState<"details" | "directions">("details");
   const [mode, setMode] = useState<RouteMode>("walk");
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
-  const watchIdRef = useRef<number | null>(null);
+  const stopLocationWatchRef = useRef<(() => void) | null>(null);
   const lastHeadingRef = useRef<number>(0);
   const headingBufferRef = useRef<number[]>([]);
   const [navState, setNavState] = useState<NavigationState | null>(null);
@@ -279,18 +271,11 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onF
       mapHandle.setNavigationRoute(route.steps, destinationCoords as { latitude: number; longitude: number });
     }
 
-    if (!navigator.geolocation) {
-      console.error("[NAV] Geolocation unavailable for navigation");
-      return;
-    }
-    // Clear any previous watcher just in case
-    if (watchIdRef.current != null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
-    const watchId = navigator.geolocation.watchPosition(
+    stopLocationWatchRef.current?.();
+    stopLocationWatchRef.current = watchLocation(
       (pos) => {
-        const { latitude, longitude, heading, accuracy, speed } = pos.coords;
+        const { heading, accuracy, speed } = pos.coords;
+        const { latitude, longitude } = wgs84ToGcj02(pos.coords);
         console.log("[NAV] Position update", { lat: latitude, lng: longitude, heading, accuracy, speed });
         lastUserPositionRef.current = { latitude, longitude };
         const currentRoute = routeRef.current;
@@ -469,20 +454,20 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onF
           }
         }
       },
-      (err) => {
-        console.error("[NAV] Position error:", err.code, err.message);
+      (error) => {
+        console.error("[NAV] Position error:", error);
+        const code = (error as { code?: unknown } | null)?.code;
+        // A position timeout can recover on the next update; keep the watch active.
+        if (code === 2 || code === 3 || code === "OS-PLUG-GLOC-0010" || code === "OS-PLUG-GLOC-0002") return;
+        handleEndRef.current?.();
+        toast("Navigation stopped. Check your location permission and try again.");
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 },
     );
-    watchIdRef.current = watchId;
-    console.log("[NAV] watchPosition registered, watchId:", watchId);
   };
 
   const handleEnd = () => {
-    if (watchIdRef.current != null) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
-      watchIdRef.current = null;
-    }
+    stopLocationWatchRef.current?.();
+    stopLocationWatchRef.current = null;
     if (arrivedTimerRef.current != null) {
       window.clearTimeout(arrivedTimerRef.current);
       arrivedTimerRef.current = null;
@@ -637,10 +622,8 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onF
   // Auto-cleanup the watcher if the sheet unmounts mid-navigation
   useEffect(() => {
     return () => {
-      if (watchIdRef.current != null) {
-        navigator.geolocation.clearWatch(watchIdRef.current);
-        watchIdRef.current = null;
-      }
+      stopLocationWatchRef.current?.();
+      stopLocationWatchRef.current = null;
       if (arrivedTimerRef.current != null) {
         window.clearTimeout(arrivedTimerRef.current);
       }
@@ -662,44 +645,6 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onF
   );
   const isLongAddress = displayAddress.length > 90;
 
-  const placeId = place?.coordinate
-    ? generateId({
-        name: place.name ?? "Place",
-        coordinate: place.coordinate as { latitude: number; longitude: number },
-      })
-    : null;
-  const saved = placeId ? isSaved(placeId) : false;
-
-  const handleToggleSave = () => {
-    if (!place || !placeId) return;
-    if (!user) {
-      navigate(`/auth?next=${encodeURIComponent("/map")}`);
-      return;
-    }
-    const coord = place.coordinate as { latitude: number; longitude: number };
-    const result = toggle({
-      id: placeId,
-      name: place.name ?? "Place",
-      address: place.formattedAddress ?? "",
-      latitude: coord.latitude,
-      longitude: coord.longitude,
-      category: category ?? "generic",
-      savedAt: Date.now(),
-    });
-    if (result.saved) {
-      toast.success("Saved to favourites", {
-        duration: 2000,
-        icon: <Check className="h-4 w-4" />,
-      });
-      if (!hasSeenSavedTooltip()) {
-        markSavedTooltipSeen();
-        window.setTimeout(() => onFirstSave?.(), 2100);
-      }
-    } else {
-      toast("Removed from favourites", { duration: 2000 });
-    }
-  };
-
   const renderDetails = () => (
     <div className="px-4" style={{ paddingBottom: 96 }}>
       {/* Peek content — always visible */}
@@ -718,22 +663,6 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onF
           >
             <Navigation className="h-4 w-4 shrink-0" />
             <span>Directions</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleToggleSave}
-            className={`flex-1 h-11 rounded-full text-sm font-semibold flex items-center justify-center gap-1.5 ${
-              saved
-                ? "bg-primary-soft text-primary border border-transparent"
-                : "bg-transparent text-ink border border-border-strong"
-            }`}
-          >
-            {saved ? (
-              <BookmarkCheck className="h-4 w-4 shrink-0" fill="currentColor" />
-            ) : (
-              <Bookmark className="h-4 w-4 shrink-0" />
-            )}
-            <span>{saved ? "Saved" : "Save"}</span>
           </button>
           <button
             type="button"

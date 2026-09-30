@@ -62,7 +62,9 @@ const bookingServiceCopy = (amountLabel: string, newSet: boolean) => ({
       : "Covers up to five bookings for your trip.",
   ],
 });
-import { searchAutocomplete, resolvePlace } from "@/lib/mapkitSearch";
+import { getAmapCityCode } from "@/lib/amapCities";
+import { resolveAmapSuggestion, searchAmapSuggestions } from "@/lib/amapPoiSearch";
+import type { AutocompleteSuggestion } from "@/lib/mapTypes";
 import {
   DINING_BUDGET_LABEL,
   DINING_BUDGET_OPTIONS,
@@ -90,11 +92,9 @@ type Venue = {
   meta?: string;
   lat?: number;
   lng?: number;
-  source: "local" | "mapkit";
+  source: "local" | "amap";
   district?: string;
-  // Opaque payload used to resolve MapKit suggestions on pick.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _suggestion?: any;
+  _suggestion?: AutocompleteSuggestion;
 };
 
 // A concise, model-facing candidate derived from the curated pick list.
@@ -116,18 +116,8 @@ type AiRecommendation = {
   alternative: AiCandidate | null;
 };
 
-// Total cap across local + MapKit groups.
+// Total cap across local and AMap results.
 const MAX_RESULTS = 8;
-
-// MapKit's region bias is a soft hint, not a filter, and a bare venue name
-// often surfaces global brand matches first. Appending the city qualifier
-// dramatically improves recall for Shanghai venues without hurting queries
-// that already mention the city.
-const withCityQualifier = (q: string): string => {
-  const trimmed = q.trim();
-  if (!trimmed) return trimmed;
-  return /shanghai/i.test(trimmed) ? trimmed : `${trimmed} Shanghai`;
-};
 
 const AREAS = [
   "The Bund",
@@ -428,7 +418,7 @@ const RestaurantBooking = () => {
     return m;
   }, [aiCandidates]);
 
-  // Merged async search: local venues first, then MapKit suggestions.
+  // Merged async search: local venues first, then AMap suggestions.
   const [results, setResults] = useState<Venue[]>([]);
   const [searching, setSearching] = useState(false);
 
@@ -448,19 +438,23 @@ const RestaurantBooking = () => {
       )
       .slice(0, MAX_RESULTS);
 
-    // Show local matches immediately while MapKit runs.
+    // Show local matches immediately while AMap runs.
     setResults(local);
     setSearching(true);
 
     const ctrl = new AbortController();
     const t = setTimeout(async () => {
       try {
-        const mk = await searchAutocomplete(withCityQualifier(q), { signal: ctrl.signal });
+        const suggestions = await searchAmapSuggestions(q, {
+          center: { latitude: city.center[0], longitude: city.center[1] },
+          city: getAmapCityCode(city.id),
+          signal: ctrl.signal,
+        });
         if (ctrl.signal.aborted) return;
         const seen = new Set(local.map((v) => v.name.toLowerCase()));
         const mapped: Venue[] = [];
         const remaining = Math.max(0, MAX_RESULTS - local.length);
-        for (const s of mk) {
+        for (const s of suggestions) {
           const primary = s.displayLines[0]?.trim();
           if (!primary) continue;
           const key = primary.toLowerCase();
@@ -471,7 +465,7 @@ const RestaurantBooking = () => {
             address: s.displayLines.slice(1).join(", ") || undefined,
             lat: s.coordinate?.latitude,
             lng: s.coordinate?.longitude,
-            source: "mapkit",
+            source: "amap",
             _suggestion: s,
           });
           if (mapped.length >= remaining) break;
@@ -488,7 +482,7 @@ const RestaurantBooking = () => {
       ctrl.abort();
       clearTimeout(t);
     };
-  }, [query, venueIndex]);
+  }, [query, venueIndex, city]);
 
   const canAddFreeText = query.trim().length >= 2;
 
@@ -594,16 +588,16 @@ const RestaurantBooking = () => {
 
   const pickVenue = async (v: Venue) => {
     triggerHaptic("impactLight");
-    if (v.source === "mapkit" && v._suggestion) {
+    if (v.source === "amap" && v._suggestion) {
       try {
-        const place = await resolvePlace(v._suggestion);
+        const place = await resolveAmapSuggestion(v._suggestion);
         if (place) {
           setSelected({
             name: place.name || v.name,
             address: place.formattedAddress || v.address,
             lat: place.coordinate?.latitude ?? v.lat,
             lng: place.coordinate?.longitude ?? v.lng,
-            source: "mapkit",
+            source: "amap",
           });
           setStep("confirm");
           return;
@@ -1039,7 +1033,7 @@ const SearchStep = ({
   const trimmed = query.trim();
   const hasQuery = trimmed.length >= 3;
   const localResults = results.filter((r) => r.source === "local");
-  const mapkitResults = results.filter((r) => r.source === "mapkit");
+  const amapResults = results.filter((r) => r.source === "amap");
   const freeTextAvailable =
     canAddFreeText &&
     !results.some((r) => r.name.toLowerCase() === trimmed.toLowerCase());
@@ -1082,11 +1076,11 @@ const SearchStep = ({
             </ResultGroup>
           )}
 
-          {mapkitResults.length > 0 && (
+          {amapResults.length > 0 && (
             <ResultGroup label="Places">
-              {mapkitResults.map((v) => (
+              {amapResults.map((v) => (
                 <ResultRow
-                  key={`mapkit-${v.name}`}
+                  key={`amap-${v.name}`}
                   primary={v.name}
                   secondary={v.address}
                   onClick={() => onPick(v)}

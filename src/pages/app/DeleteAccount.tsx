@@ -12,7 +12,7 @@ const CLEARED = [
   "Your profile, trip dates and travel preferences",
   "Every concierge conversation and message",
   "Your bookings and requests",
-  "Saved plans and saved places",
+  "Saved plans",
   "Notification settings and any queued emails",
 ];
 

@@ -102,7 +102,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       "- Cloud Computing and Data Storage Providers — to host the Services and store data.",
       "- Email and Communication Delivery Providers — to send transactional messages such as booking notifications.",
       "- Fulfilment Partners — the third parties who deliver what you book: for example our driver-service partner receives the passenger name, contact number, pickup details, and flight number for a transfer you book; a restaurant receives the reservation name, party size, and time for a table we book on your behalf.",
-      "- Maps and Routing Providers — when you search for a place or request a route, the search terms and relevant coordinates are processed by Apple Maps (MapKit) and, for routing within mainland China, AutoNavi (Amap). These lookups are made to provide the map feature and are not used by us for advertising.",
+      "- Maps and Routing Providers — when you search for a place or request a route, search terms and relevant coordinates are processed by AutoNavi (Amap). MapTiler displays the map and route. These lookups are made to provide the map feature and are not used by us for advertising.",
       "- Website Hosting and Product Engineering Providers — to build, host, and maintain the Services.",
       "We may also need to share personal information in connection with a business transfer, such as a merger, sale of company assets, financing, or acquisition of all or a portion of our business."
     ]
@@ -443,7 +443,7 @@ export const COOKIES_POLICY: LegalDocument = {
   },  {
     heading: "3. THIRD-PARTY SERVICES",
     paragraphs: [
-      "Some features rely on third-party services that may set their own strictly necessary cookies or process technical data when you use them: Stripe (payments, as above) and Apple Maps / MapKit (when you use map features, Apple processes map requests under its own privacy terms). We do not control these third parties' technologies; links to their policies are provided in our Privacy Policy."
+      "Some features rely on third-party services that may set their own strictly necessary cookies or process technical data when you use them: Stripe (payments, as above), AutoNavi (place search and routing), and MapTiler (map display). We do not control these third parties' technologies."
     ]
   },  {
     heading: "4. HOW LONG DOES STORED DATA LAST?",

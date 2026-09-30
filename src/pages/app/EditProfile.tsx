@@ -4,6 +4,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { CheckCircle2, ChevronDown, KeyRound, Loader2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthRedirectUrl } from "@/integrations/capacitor";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency, SUPPORTED_CURRENCIES, type CurrencyCode } from "@/contexts/CurrencyContext";
 import { NATIONALITIES, dialForNationality } from "@/data/profileOptions";
@@ -256,7 +257,7 @@ const EditProfile = () => {
                   return;
                 }
                 const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                  redirectTo: `${window.location.origin}/reset-password`,
+                  redirectTo: getAuthRedirectUrl("/reset-password"),
                 });
                 if (error) toast.error(error.message);
                 else toast.success("Check your inbox to set a new password");

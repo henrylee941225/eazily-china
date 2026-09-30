@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { getAuthRedirectUrl, isCapacitorApp, openExternalUrl } from "@/integrations/capacitor";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -138,7 +139,7 @@ const Auth = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}${profileSetupRedirect}`,
+            emailRedirectTo: getAuthRedirectUrl(profileSetupRedirect),
             data: { display_name: name },
           },
         });
@@ -147,7 +148,7 @@ const Auth = () => {
           console.info("[ops signup trace] create account submitted", {
             url: window.location.href,
             next: nextDestination,
-            emailRedirectTo: `${window.location.origin}${profileSetupRedirect}`,
+            emailRedirectTo: getAuthRedirectUrl(profileSetupRedirect),
           });
         }
         // Supabase returns a "fake" user with empty identities array when the
@@ -186,6 +187,17 @@ const Auth = () => {
     triggerHaptic("impactMedium");
     setBusy(true);
     try {
+      if (isCapacitorApp()) {
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: getAuthRedirectUrl(signinRedirect), skipBrowserRedirect: true },
+        });
+        if (error) throw error;
+        if (!data.url) throw new Error("Sign-in URL is unavailable");
+        await openExternalUrl(data.url);
+        setBusy(false);
+        return;
+      }
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin + signinRedirect,
       });
@@ -203,7 +215,7 @@ const Auth = () => {
     setForgotBusy(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: getAuthRedirectUrl("/reset-password"),
       });
       if (error) throw error;
       setForgotOpen(false);

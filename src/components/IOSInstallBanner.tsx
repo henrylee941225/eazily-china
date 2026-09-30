@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Share, X } from "lucide-react";
+import { isCapacitorApp } from "@/integrations/capacitor";
 
 const STORAGE_KEY = "ios-install-banner-dismissed";
 
@@ -7,7 +8,7 @@ export const IOSInstallBanner = () => {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || isCapacitorApp()) return;
 
     const ua = window.navigator.userAgent;
     // iOS detection (iPhone/iPad/iPod). Also handle iPadOS reporting as Mac with touch.

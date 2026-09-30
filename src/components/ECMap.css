@@ -1,0 +1,63 @@
+.eazi-map {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  background: #f0f0f0;
+}
+
+.eazi-map-container {
+  position: absolute;
+  inset: 0;
+}
+
+.eazi-map-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: #555;
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.eazi-map-user-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #1976ff;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 4px rgb(25 118 255 / 18%), 0 2px 6px rgb(0 0 0 / 25%);
+  pointer-events: none;
+}
+
+.eazi-map-destination {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e63946;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 25%);
+  pointer-events: none;
+}
+
+.eazi-map-destination-pulse::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: #e63946;
+  animation: eazi-map-pulse 1.8s ease-out infinite;
+}
+
+@keyframes eazi-map-pulse {
+  from { transform: scale(1); opacity: 0.5; }
+  to { transform: scale(2.5); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .eazi-map-destination-pulse::before { animation: none; }
+}

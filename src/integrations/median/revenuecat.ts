@@ -1,7 +1,7 @@
 /**
- * RevenueCat bridge (Median iOS app only).
+ * RevenueCat bridge for Median and Capacitor native apps.
  *
- * The bridge functions exist only inside the Median native wrapper. On web
+ * The bridge functions exist only inside a supported native wrapper. On web
  * builds every helper here reports "unavailable" so callers fall back to the
  * existing Stripe checkout instead of throwing.
  *
@@ -10,11 +10,14 @@
  * booking_entitlements server-side; the UI polls the server for it.
  */
 import { Median } from "@/integrations/median";
+import { Capacitor } from "@capacitor/core";
+import { capacitorRevenueCatBridge } from "@/integrations/capacitor/revenuecat";
 
 export const TRIP_PASS_PRODUCT_IDENTIFIER = "com.eazilychina.app.trippass";
 
-const REVENUECAT_API_KEY = (import.meta as { env?: Record<string, string | undefined> }).env
-  ?.VITE_REVENUECAT_IOS_KEY;
+const revenueCatApiKey = () => Capacitor.getPlatform() === "android"
+  ? import.meta.env.VITE_REVENUECAT_ANDROID_KEY
+  : import.meta.env.VITE_REVENUECAT_IOS_KEY;
 
 type RevenueCatBridge = {
   configure?: (params: { apiKey: string; appUserID: string }) => Promise<unknown>;
@@ -26,6 +29,7 @@ type RevenueCatBridge = {
 
 const bridge = (): RevenueCatBridge | null => {
   if (typeof window === "undefined") return null;
+  if (Capacitor.isNativePlatform()) return capacitorRevenueCatBridge;
   if (!(window as unknown as { isMedianApp?: boolean }).isMedianApp) return null;
   const rc = (Median as unknown as { revenueCat?: RevenueCatBridge })?.revenueCat;
   return rc && typeof rc.purchase === "function" ? rc : null;
@@ -41,6 +45,7 @@ export type PlatformGuess = "browser" | "native" | "uncertain";
  */
 export const detectPlatform = (): PlatformGuess => {
   try {
+    if (Capacitor.isNativePlatform()) return "native";
     if (typeof window === "undefined" || typeof navigator === "undefined") return "uncertain";
     const w = window as unknown as Record<string, unknown> & {
       webkit?: { messageHandlers?: Record<string, unknown> };
@@ -66,8 +71,8 @@ export const detectPlatform = (): PlatformGuess => {
 /** Card payment is offered only on a confidently detected browser. */
 export const canOfferCardFallback = (): boolean => detectPlatform() === "browser";
 
-/** True when in-app purchases can actually run (Median app + bridge + key). */
-export const isRevenueCatAvailable = (): boolean => !!bridge() && !!REVENUECAT_API_KEY;
+/** True when the native purchase bridge and the platform's API key are present. */
+export const isRevenueCatAvailable = (): boolean => !!bridge() && !!revenueCatApiKey();
 
 /** Resolves the bridge's own initialisation flag, tolerating shape differences. */
 const readIsInitialized = async (rc: RevenueCatBridge): Promise<boolean> => {
@@ -95,13 +100,14 @@ export const configureRevenueCat = async (userId: string | null | undefined): Pr
     configuredForUser = null;
     return false;
   }
-  if (!REVENUECAT_API_KEY) {
-    console.warn("RevenueCat: VITE_REVENUECAT_IOS_KEY is not set — in-app purchase disabled.");
+  const apiKey = revenueCatApiKey();
+  if (!apiKey) {
+    console.warn("RevenueCat: the platform API key is not set — in-app purchase disabled.");
     return false;
   }
   if (configuredForUser === userId && (await readIsInitialized(rc))) return true;
   try {
-    await rc.configure({ apiKey: REVENUECAT_API_KEY, appUserID: userId });
+    await rc.configure({ apiKey, appUserID: userId });
     configuredForUser = userId;
     return true;
   } catch (err) {
@@ -143,10 +149,7 @@ const pick = (o: unknown, keys: string[]): string | undefined => {
 export const purchaseTripPass = async (userId: string | null | undefined): Promise<PurchaseResult> => {
   const rc = bridge();
   if (!rc || typeof rc.purchase !== "function") return { success: false, error: "unavailable", code: "bridge_absent" };
-  if (!(await readIsInitialized(rc))) {
-    const ok = await configureRevenueCat(userId);
-    if (!ok) return { success: false, error: "not_initialised", code: "not_initialised" };
-  }
+  if (!(await configureRevenueCat(userId))) return { success: false, error: "not_initialised", code: "not_initialised" };
   try {
     const res = (await rc.purchase({ identifier: TRIP_PASS_PRODUCT_IDENTIFIER })) as unknown;
     const r = (res ?? {}) as Record<string, unknown>;
@@ -212,9 +215,7 @@ export const getTripPassPrice = async (
 ): Promise<string | null> => {
   const rc = bridge();
   if (!rc || typeof rc.getOfferings !== "function") return null;
-  if (!(await readIsInitialized(rc))) {
-    if (!(await configureRevenueCat(userId))) return null;
-  }
+  if (!(await configureRevenueCat(userId))) return null;
   try {
     const res = (await rc.getOfferings()) as Record<string, unknown> | null;
     const root = (res?.offerings as Record<string, unknown>) ?? res ?? {};
@@ -246,9 +247,7 @@ export const restoreTripPassPurchases = async (
 ): Promise<{ ok: boolean; error?: string }> => {
   const rc = bridge();
   if (!rc || typeof rc.restorePurchases !== "function") return { ok: false, error: "unavailable" };
-  if (!(await readIsInitialized(rc))) {
-    if (!(await configureRevenueCat(userId))) return { ok: false, error: "not_initialised" };
-  }
+  if (!(await configureRevenueCat(userId))) return { ok: false, error: "not_initialised" };
   try {
     await rc.restorePurchases();
     return { ok: true };
