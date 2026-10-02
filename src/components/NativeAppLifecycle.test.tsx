@@ -42,6 +42,7 @@ const mount = () => render(<MemoryRouter initialEntries={["/"]}>
 describe("native auth callbacks", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    window.localStorage.clear();
     native.listeners.clear();
     native.addListener.mockImplementation(async (event: string, listener: (event: { url: string }) => void) => {
       native.listeners.set(event, listener);
@@ -76,6 +77,31 @@ describe("native auth callbacks", () => {
     await waitFor(() => expect(screen.getByTestId("route")).toHaveTextContent("/reset-password"));
     expect(native.exchangeCodeForSession).toHaveBeenCalledExactlyOnceWith("recovery-code");
     expect(native.setSession).not.toHaveBeenCalled();
+  });
+
+  it("validates a managed OAuth callback before saving its session", async () => {
+    window.localStorage.setItem("eazilychina-native-oauth-state", "expected-state");
+    mount();
+    await waitFor(() => expect(native.getLaunchUrl).toHaveBeenCalled());
+    act(() => native.listeners.get("appUrlOpen")!({
+      url: "com.eazilychina.app://app/bookings?oauth_state=expected-state#access_token=access&refresh_token=refresh",
+    }));
+
+    await waitFor(() => expect(screen.getByTestId("route")).toHaveTextContent("/bookings"));
+    expect(native.setSession).toHaveBeenCalledExactlyOnceWith({ access_token: "access", refresh_token: "refresh" });
+    expect(window.localStorage.getItem("eazilychina-native-oauth-state")).toBeNull();
+  });
+
+  it("rejects a managed OAuth callback with a mismatched state", async () => {
+    window.localStorage.setItem("eazilychina-native-oauth-state", "expected-state");
+    mount();
+    await waitFor(() => expect(native.getLaunchUrl).toHaveBeenCalled());
+    act(() => native.listeners.get("appUrlOpen")!({
+      url: "com.eazilychina.app://app/bookings?oauth_state=wrong-state#access_token=access&refresh_token=refresh",
+    }));
+
+    expect(native.setSession).not.toHaveBeenCalled();
+    expect(screen.getByTestId("route")).toHaveTextContent("/");
   });
 
   it("ignores external callback URLs and removes listeners on unmount", async () => {

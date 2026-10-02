@@ -32,7 +32,7 @@ Deno.serve(withCors(async (req) => {
       console.warn("AMap POI request failed", data?.infocode, data?.info);
       return json({ error: "AMap search is unavailable", code: data?.infocode }, 502);
     }
-    if (body.action === "suggest") return json({ tips: Array.isArray(data.tips) ? data.tips : [] });
+    if (body.action === "suggest") return json({ tips: Array.isArray(data.pois) ? data.pois : [] });
     return json({ pois: Array.isArray(data.pois) ? data.pois : [] });
   } catch {
     return json({ error: "AMap search is unavailable" }, 502);

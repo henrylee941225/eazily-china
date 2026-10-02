@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   Search,
-  Mic,
   LocateFixed,
   Loader2,
   X,
@@ -253,13 +252,7 @@ export default function MapTest() {
   };
 
   return (
-    <div
-      className="h-screen flex flex-col bg-background"
-      style={{
-        paddingTop: "env(safe-area-inset-top)",
-        paddingBottom: "calc(64px + env(safe-area-inset-bottom))",
-      }}
-    >
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
       {/* Full-screen map area */}
       <DrawerBranch className="flex-1 relative min-h-0">
         <ECMap
@@ -308,7 +301,7 @@ export default function MapTest() {
               placeholder="Search restaurants, attractions, metro stations…"
               className="flex-1 min-w-0 bg-transparent outline-none text-sm text-ink placeholder:text-ink-tertiary"
             />
-            {queryText ? (
+            {queryText && (
               <button
                 type="button"
                 aria-label="Clear search"
@@ -316,10 +309,6 @@ export default function MapTest() {
                 className="shrink-0 flex items-center justify-center"
               >
                 <X className="h-5 w-5 text-ink-secondary" />
-              </button>
-            ) : (
-              <button type="button" aria-label="Voice search" className="shrink-0 flex items-center justify-center">
-                <Mic className="h-5 w-5 text-ink-secondary" />
               </button>
             )}
           </div>
@@ -394,7 +383,7 @@ export default function MapTest() {
           className={`absolute z-10 h-11 w-11 rounded-full bg-surface-elevated shadow-lg flex items-center justify-center transition-opacity duration-300 ${
             isNavigating ? "opacity-0 pointer-events-none" : "opacity-100"
           }`}
-          style={{ bottom: 24, right: 16 }}
+          style={{ bottom: "calc(88px + env(safe-area-inset-bottom))", right: 16 }}
         >
           <LocateFixed className="h-5 w-5 text-ink" />
         </button>

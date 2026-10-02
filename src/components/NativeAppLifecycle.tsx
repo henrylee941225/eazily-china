@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { isCapacitorApp, openExternalUrl } from "@/integrations/capacitor";
 import { parseNativeDeepLink } from "@/integrations/capacitor/deepLinks";
+import { consumeNativeOAuthDestination } from "@/integrations/capacitor/nativeOAuth";
 
 export const NativeAppLifecycle = () => {
   const navigate = useNavigate();
@@ -32,6 +33,7 @@ export const NativeAppLifecycle = () => {
       if (!link || disposed || lastUrl === rawUrl) return;
       lastUrl = rawUrl;
       try {
+        const destination = consumeNativeOAuthDestination(rawUrl, link.path);
         if (link.error) throw new Error(link.error);
         if (link.code) {
           const { error } = await supabase.auth.exchangeCodeForSession(link.code);
@@ -41,7 +43,7 @@ export const NativeAppLifecycle = () => {
           if (error) throw error;
         }
         await Browser.close().catch(() => {});
-        if (!disposed) navigateRef.current(link.path, { replace: true });
+        if (!disposed) navigateRef.current(destination, { replace: true });
       } catch (error) {
         lastUrl = undefined;
         if (!disposed) toast.error(error instanceof Error ? error.message : "Could not open sign-in link");

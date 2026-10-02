@@ -8,6 +8,8 @@ const ConciergeChatPage = () => {
   return (
   <AppLayout
     title="Concierge"
+    hideTabBar
+    fillViewport
     subtitle={
       <span className="flex flex-col gap-0.5">
         <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-success">

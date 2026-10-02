@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { getAuthRedirectUrl, isCapacitorApp, openExternalUrl } from "@/integrations/capacitor";
+import { createNativeManagedOAuthUrl } from "@/integrations/capacitor/nativeOAuth";
 import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,8 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { triggerHaptic } from "@/integrations/median";
 import { BottomTabBar } from "@/components/BottomTabBar";
 import { Wordmark } from "@/components/Wordmark";
-import shanghaiHero from "@/assets/shanghai-skyline-hero.jpg.asset.json";
-import { SOCIAL_AUTH_ENABLED } from "@/lib/featureFlags";
+import shanghaiHero from "@/assets/shanghai-skyline-hero.jpg";
+import { SOCIAL_LOGIN_BUTTONS_ENABLED } from "@/lib/featureFlags";
 
 // Length of the signup verification code emailed by the backend.
 // Change here if the backend OTP length ever changes — everything else adapts.
@@ -183,29 +184,28 @@ const Auth = () => {
     }
   };
 
-  const handleOAuth = async (provider: "google" | "apple") => {
-    triggerHaptic("impactMedium");
+  const handleSocialSignIn = async (provider: "google" | "apple") => {
+    triggerHaptic("impactLight");
     setBusy(true);
     try {
       if (isCapacitorApp()) {
-        const { data, error } = await supabase.auth.signInWithOAuth({
-          provider,
-          options: { redirectTo: getAuthRedirectUrl(signinRedirect), skipBrowserRedirect: true },
-        });
-        if (error) throw error;
-        if (!data.url) throw new Error("Sign-in URL is unavailable");
-        await openExternalUrl(data.url);
-        setBusy(false);
+        await openExternalUrl(createNativeManagedOAuthUrl(provider, signinRedirect));
         return;
       }
+
       const result = await lovable.auth.signInWithOAuth(provider, {
-        redirect_uri: window.location.origin + signinRedirect,
+        redirect_uri: getAuthRedirectUrl(signinRedirect),
       });
-      if (result.error) throw result.error;
       if (result.redirected) return;
+      if (result.error) throw result.error;
+
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (!session) throw new Error("Could not complete sign-in");
       navigate(signinRedirect, { replace: true });
-    } catch (err: any) {
-      toast.error(err.message ?? `${provider === "apple" ? "Apple" : "Google"} sign-in failed`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not sign in");
+    } finally {
       setBusy(false);
     }
   };
@@ -361,11 +361,11 @@ const Auth = () => {
       {/* Hero */}
       <div className="relative h-[200px] w-full overflow-hidden">
         <img
-          src={shanghaiHero.url}
+          src={shanghaiHero}
           alt="Shanghai skyline at sunset"
           className="absolute inset-0 h-full w-full object-cover"
-          width={1024}
-          height={768}
+          width={1600}
+          height={1067}
         />
         {/* Bottom-to-white fade — deepened for the brighter shared hero image
             so the logo and "Welcome back." heading stay legible. */}
@@ -409,7 +409,7 @@ const Auth = () => {
           </Button>
         </form>
 
-        {SOCIAL_AUTH_ENABLED && (
+        {SOCIAL_LOGIN_BUTTONS_ENABLED && (
           <>
         <div className="my-4 flex items-center gap-3 text-[11px] text-muted-foreground">
           <span className="h-px flex-1 bg-foreground/10" />
@@ -420,7 +420,7 @@ const Auth = () => {
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
-            onClick={() => handleOAuth("apple")}
+            onClick={() => handleSocialSignIn("apple")}
             disabled={busy}
             className="flex h-[52px] items-center justify-center gap-2 rounded-2xl border border-[#E2E2E2] bg-white text-[15px] font-medium text-ink transition hover:bg-[#F6F6F7] disabled:opacity-50"
           >
@@ -429,7 +429,7 @@ const Auth = () => {
           </button>
           <button
             type="button"
-            onClick={() => handleOAuth("google")}
+            onClick={() => handleSocialSignIn("google")}
             disabled={busy}
             className="flex h-[52px] items-center justify-center gap-2 rounded-2xl border border-[#E2E2E2] bg-white text-[15px] font-medium text-ink transition hover:bg-[#F6F6F7] disabled:opacity-50"
           >
@@ -718,6 +718,7 @@ const Auth = () => {
           return (
             <input
               key={i}
+              data-keep-font-size=""
               ref={(el) => (otpRefs.current[i] = el)}
               value={d}
               onChange={(e) => handleOtpChange(i, e.target.value)}

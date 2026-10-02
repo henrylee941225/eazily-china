@@ -1,6 +1,10 @@
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Home, Map as MapIcon, CalendarCheck, Languages, Sparkles } from "lucide-react";
+import { Keyboard } from "@capacitor/keyboard";
+import type { PluginListenerHandle } from "@capacitor/core";
 import { triggerHaptic } from "@/integrations/median";
+import { isCapacitorApp } from "@/integrations/capacitor";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Tab = {
@@ -21,6 +25,34 @@ const TABS: Tab[] = [
 export const BottomTabBar = () => {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    if (!isCapacitorApp()) return;
+    let disposed = false;
+    const listeners: PluginListenerHandle[] = [];
+    const listen = async (listener: Promise<PluginListenerHandle>) => {
+      try {
+        const handle = await listener;
+        if (disposed) await handle.remove();
+        else listeners.push(handle);
+      } catch (error) {
+        console.warn("Keyboard listener registration failed", error);
+      }
+    };
+
+    void listen(Keyboard.addListener("keyboardWillShow", () => {
+      if (!disposed) setKeyboardVisible(true);
+    }));
+    void listen(Keyboard.addListener("keyboardDidHide", () => {
+      if (!disposed) setKeyboardVisible(false);
+    }));
+
+    return () => {
+      disposed = true;
+      listeners.forEach((handle) => { void handle.remove(); });
+    };
+  }, []);
 
   const handleConcierge = () => {
     triggerHaptic("impactMedium");
@@ -33,9 +65,10 @@ export const BottomTabBar = () => {
 
   return (
     <nav
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-3"
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+      className={`pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-1 ${keyboardVisible ? "invisible" : ""}`}
+      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.25rem)" }}
       aria-label="Primary"
+      aria-hidden={keyboardVisible}
     >
       <div className="pointer-events-auto relative mx-auto flex max-w-[420px] items-stretch justify-between rounded-full border border-hairline bg-white px-3 py-2 shadow-[0_12px_32px_-12px_rgba(0,0,0,0.18)]">
         {/* Left pair */}

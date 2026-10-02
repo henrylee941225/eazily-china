@@ -138,6 +138,13 @@
   ::selection { background: hsl(var(--ink)); color: hsl(var(--surface)); }
 }
 
+/* Keep focused form controls readable without triggering WebView's input zoom. */
+@media (hover: none) and (pointer: coarse) {
+  :is(input, textarea, select):not([type="checkbox"], [type="radio"], [type="range"], [data-keep-font-size]) {
+    font-size: 16px;
+  }
+}
+
 @layer components {
   .font-display { font-family: var(--font-display); font-optical-sizing: auto; }
   .font-cn { font-family: var(--font-cn); }

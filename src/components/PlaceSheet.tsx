@@ -28,7 +28,6 @@ import {
 import { toast } from "sonner";
 import type { ECMapHandle, Place, RouteMode, RouteResult } from "@/components/ECMap";
 import { useAuth } from "@/contexts/AuthContext";
-import { getCategoryVisual } from "@/lib/categoryVisuals";
 import {
   getCurrentStep,
   formatManeuverDistance,
@@ -644,6 +643,7 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onN
     [place?.formattedAddress, place?.name],
   );
   const isLongAddress = displayAddress.length > 90;
+  const photos = place?.photos ?? [];
 
   const renderDetails = () => (
     <div className="px-4" style={{ paddingBottom: 96 }}>
@@ -677,34 +677,22 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onN
 
       {/* Half content */}
       <div className="mt-6">
-        <div className="flex gap-2 overflow-x-auto -mx-4 px-4">
-          {[1, 2, 3].map((i) => {
-            const meta = getCategoryVisual(category);
-            const Icon = meta.icon;
-            const iconSize = 64;
-            return (
-              <div
-                key={i}
-                className="relative flex-shrink-0 overflow-hidden rounded-xl"
-                style={{ width: 280, height: 180, background: meta.color }}
-              >
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Icon
-                    style={{ width: iconSize, height: iconSize, color: "rgba(255,255,255,0.5)" }}
-                  />
-                </div>
-                <span
-                  className="absolute bottom-3 left-3 text-[12px]"
-                  style={{ color: "rgba(255,255,255,0.7)" }}
-                >
-                  Photos coming soon
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        {photos.length > 0 && (
+          <div className="flex gap-2 overflow-x-auto -mx-4 px-4" data-vaul-no-drag>
+            {photos.map((photo, index) => (
+              <img
+                key={`${photo.url}-${index}`}
+                src={photo.url}
+                alt={photo.title || `${place?.name ?? "Place"} photo ${index + 1}`}
+                loading="lazy"
+                draggable={false}
+                className="h-[180px] w-[280px] flex-shrink-0 rounded-xl object-cover"
+              />
+            ))}
+          </div>
+        )}
 
-        <div className="mt-4 flex items-start justify-between gap-3">
+        <div className={`${photos.length > 0 ? "mt-4 " : ""}flex items-start justify-between gap-3`}>
           <div className="flex-1 min-w-0">
             <p className="text-xs uppercase tracking-wide text-ink-tertiary">Address</p>
             <p

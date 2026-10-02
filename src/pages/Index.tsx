@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MapPin,
   ChevronRight,
@@ -41,7 +42,7 @@ import {
 } from "@/lib/conciergeStatus";
 import { resolvePaymentPresentation } from "@/lib/paymentPhase";
 import { categoryIcon } from "@/lib/conciergeCategory";
-import shanghaiHero from "@/assets/shanghai-skyline-hero.jpg.asset.json";
+import shanghaiHero from "@/assets/shanghai-skyline-hero.jpg";
 import { TRANSFERS_ENABLED } from "@/lib/featureFlags";
 import { useConciergeLauncher } from "@/components/concierge/ConciergeLauncher";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
@@ -54,6 +55,7 @@ import {
   unhideFromHome,
 } from "@/lib/hideFromHome";
 import { isTransferPastPickupStale } from "@/lib/bookingExpiry";
+import { HOME_CACHE_MAX_AGE_MS, readHomeCache, writeHomeCache } from "@/lib/homeCache";
 
 // Routes that require sign-in. When the visitor is a guest, navigating any of
 // these should bounce through /auth?next=<target> so they return here on success.
@@ -83,6 +85,17 @@ type BookingRow = {
   authorized_at: string | null;
   details_json: unknown;
 };
+
+const isBookingRows = (value: unknown): value is BookingRow[] =>
+  Array.isArray(value) && value.every((row) =>
+    row !== null &&
+    typeof row === "object" &&
+    typeof row.id === "string" &&
+    typeof row.summary === "string" &&
+    typeof row.status === "string" &&
+    typeof row.created_at === "string" &&
+    typeof row.updated_at === "string",
+  );
 
 const timeOfDayGreeting = () => {
   const h = new Date().getHours();
@@ -177,6 +190,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { city } = useCity();
   const { profile, user, refreshProfile, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const { open: openLauncher } = useConciergeLauncher();
   const signedIn = !!user;
 
@@ -193,45 +207,48 @@ const Index = () => {
     if (!seen) navigate("/welcome", { replace: true });
   }, [authLoading, user, navigate]);
 
-  const rawName =
-    profile?.display_name?.trim() ||
-    (user?.user_metadata as any)?.display_name ||
-    (user?.user_metadata as any)?.full_name ||
-    (user?.user_metadata as any)?.name ||
-    "";
+  const metadata = user?.user_metadata as Record<string, unknown> | undefined;
+  const metadataName = [metadata?.display_name, metadata?.full_name, metadata?.name]
+    .find((value): value is string => typeof value === "string" && !!value.trim());
+  const rawName = profile?.display_name?.trim() || metadataName?.trim() || "";
   const firstName = signedIn && rawName ? rawName.split(" ")[0] : "";
 
   // Live bookings — used for the notification banner and "Your bookings".
-  const [bookings, setBookings] = useState<BookingRow[] | null>(null);
-
-  useEffect(() => {
-    if (!user) {
-      setBookings([]);
-      return;
-    }
-    let cancelled = false;
-    const load = async () => {
-      const { data } = await supabase
+  const userId = user?.id;
+  const { data: bookings } = useQuery<BookingRow[]>({
+    queryKey: ["home", "bookings", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      if (!userId) return [];
+      const { data, error } = await supabase
         .from("concierge_tasks")
         .select("id,summary,details,status,category,created_at,updated_at,booking_reference,paid_at,authorized_at,hold_released_at,details_json")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
-      if (!cancelled) setBookings((data ?? []) as BookingRow[]);
-    };
-    load();
+      if (error) throw error;
+      const rows = (data ?? []) as BookingRow[];
+      writeHomeCache(userId, "bookings", rows);
+      return rows;
+    },
+    initialData: () => userId ? readHomeCache(userId, "bookings", isBookingRows) : undefined,
+    gcTime: HOME_CACHE_MAX_AGE_MS,
+    refetchOnMount: "always",
+  });
+
+  useEffect(() => {
+    if (!userId) return;
     const channel = supabase
       .channel("home:bookings")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "concierge_tasks", filter: `user_id=eq.${user.id}` },
-        () => load(),
+        { event: "*", schema: "public", table: "concierge_tasks", filter: `user_id=eq.${userId}` },
+        () => { void queryClient.invalidateQueries({ queryKey: ["home", "bookings", userId] }); },
       )
       .subscribe();
     return () => {
-      cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [userId, queryClient]);
 
   // Optimistic hide/undo layer so the card disappears (or returns) instantly,
   // without waiting for the profile refetch.
@@ -686,7 +703,7 @@ const WelcomeHero = ({ city, signedIn }: { city: string; signedIn: boolean }) =>
       style={{ height: 180 }}
     >
       <img
-        src={shanghaiHero.url}
+        src={shanghaiHero}
         alt={`${city} skyline`}
         className="absolute inset-0 h-full w-full object-cover object-center"
         loading="lazy"

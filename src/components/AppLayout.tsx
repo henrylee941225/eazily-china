@@ -17,6 +17,8 @@ type Props = {
   className?: string;
   /** Hide the floating bottom tab bar (used by wizard-style flows). */
   hideTabBar?: boolean;
+  /** Let the page fill the viewport and scroll its own content. */
+  fillViewport?: boolean;
   /** Set when the page renders its own sticky CTA bar via `.bottom-above-nav`
    *  — reserves extra scroll padding so the last content clears both the CTA
    *  and the floating nav. Ignored when `hideTabBar` is true. */
@@ -33,6 +35,7 @@ export const AppLayout = ({
   headerRight,
   className,
   hideTabBar = false,
+  fillViewport = false,
   hasBottomBar = false,
 }: Props) => {
   const bottomPad = hideTabBar
@@ -41,7 +44,7 @@ export const AppLayout = ({
       ? "pb-with-nav-cta"
       : "pb-with-nav";
   return (
-    <div className={`min-h-screen bg-white ${bottomPad} ${className ?? ""}`}>
+    <div className={`${fillViewport ? "flex h-[100dvh] flex-col overflow-hidden" : "min-h-screen"} bg-white ${bottomPad} ${className ?? ""}`}>
       {showLiveActivity && <AILiveActivity />}
       <ScreenHeader
         title={title}
@@ -49,9 +52,10 @@ export const AppLayout = ({
         showBack={showBack}
         backTo={backTo}
         trailing={headerRight}
+        className={fillViewport ? "shrink-0" : undefined}
       />
 
-      <main className="container mx-auto px-3 py-4 sm:px-4 sm:py-6">{children}</main>
+      <main className={`container mx-auto ${fillViewport ? "flex min-h-0 flex-1 flex-col overflow-hidden p-0" : "px-3 py-4 sm:px-4 sm:py-6"}`}>{children}</main>
 
       {!hideTabBar && <BottomTabBar />}
     </div>

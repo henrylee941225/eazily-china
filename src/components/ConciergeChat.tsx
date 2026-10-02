@@ -3,7 +3,10 @@ import { useNavigate, useLocation } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { ArrowUp, Mic, Plus, Car, Utensils } from "lucide-react";
 import { toast } from "sonner";
+import { Keyboard } from "@capacitor/keyboard";
+import type { PluginListenerHandle } from "@capacitor/core";
 import { supabase } from "@/integrations/supabase/client";
+import { isCapacitorApp } from "@/integrations/capacitor";
 import { bookingParamsForVenue, resolveVenueBySlug } from "@/lib/venueBySlug";
 
 type Action =
@@ -53,6 +56,7 @@ export const ConciergeChat = () => {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [storageKey, setStorageKey] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefillHandledRef = useRef(false);
@@ -60,6 +64,33 @@ export const ConciergeChat = () => {
   // "Ask concierge to book"). Used to pre-select that venue when the
   // concierge later offers to reserve it.
   const venueSlugHintRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isCapacitorApp()) return;
+    let disposed = false;
+    const listeners: PluginListenerHandle[] = [];
+    const listen = async (listener: Promise<PluginListenerHandle>) => {
+      try {
+        const handle = await listener;
+        if (disposed) await handle.remove();
+        else listeners.push(handle);
+      } catch (error) {
+        console.warn("Keyboard listener registration failed", error);
+      }
+    };
+
+    void listen(Keyboard.addListener("keyboardWillShow", () => {
+      if (!disposed) setKeyboardVisible(true);
+    }));
+    void listen(Keyboard.addListener("keyboardDidHide", () => {
+      if (!disposed) setKeyboardVisible(false);
+    }));
+
+    return () => {
+      disposed = true;
+      listeners.forEach((handle) => { void handle.remove(); });
+    };
+  }, []);
 
   // Load persisted history for the current user
   useEffect(() => {
@@ -224,10 +255,7 @@ export const ConciergeChat = () => {
   };
 
   return (
-    <div
-      className="-mx-3 -my-4 flex flex-col bg-white sm:-mx-4 sm:-my-6"
-      style={{ minHeight: "calc(100dvh - 12rem)" }}
-    >
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       {/* Transcript */}
       <div
         ref={scrollRef}
@@ -302,8 +330,11 @@ export const ConciergeChat = () => {
         </div>
       </div>
 
-      {/* Composer — sticky, matches home/translate styling */}
-      <div className="sticky bottom-0 border-t border-border bg-white px-4 pt-3 pb-3">
+      {/* Composer */}
+      <div
+        className="shrink-0 border-t border-border bg-white px-4 pt-3"
+        style={{ paddingBottom: keyboardVisible ? "0.75rem" : "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+      >
         <form
           onSubmit={(e) => {
             e.preventDefault();

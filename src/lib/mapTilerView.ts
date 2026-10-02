@@ -15,6 +15,16 @@ const ROUTE = "eazi-route";
 const NAVIGATION = "eazi-navigation";
 const EMPTY_PLACES: PlaceFeatures = { type: "FeatureCollection", features: [] };
 const EMPTY_LINES: FeatureCollection<LineString> = { type: "FeatureCollection", features: [] };
+const ENGLISH_LABEL = ["coalesce", ["get", "name:en"], ["get", "name:latin"], ""];
+
+const usesPlaceName = (value: unknown): boolean => {
+  if (typeof value === "string") return /\{name(?:(?::|_)[^}]*)?\}|[\u3400-\u9fff]/u.test(value);
+  if (!Array.isArray(value)) return false;
+  if (value[0] === "get" && typeof value[1] === "string") {
+    return value[1] === "name" || value[1].startsWith("name:") || value[1].startsWith("name_");
+  }
+  return value.some(usesPlaceName);
+};
 
 /** Owns renderer resources; public coordinates retain the existing app datum. */
 export class MapTilerView {
@@ -51,7 +61,8 @@ export class MapTilerView {
       style: import.meta.env.VITE_MAPTILER_STYLE || sdk.MapStyle.STREETS,
       center: toMapTilerCoordinate(initialCenter),
       zoom: initialZoom,
-      language: sdk.Language.ENGLISH,
+      // Keep the SDK from restoring local-name fallbacks after labels are updated.
+      language: sdk.Language.STYLE_LOCK,
       projection: "mercator",
       navigationControl: false,
       geolocateControl: false,
@@ -67,6 +78,7 @@ export class MapTilerView {
       this.map.on("load", () => {
         if (this.disposed) return;
         try {
+          this.useEnglishBasemapLabels();
           this.initializeLayers();
           this.loaded = true;
           clearTimeout(this.loadTimeout);
@@ -102,6 +114,13 @@ export class MapTilerView {
     for (const layer of [PINS, CLUSTERS]) {
       this.map.on("mouseenter", layer, () => { this.map.getCanvas().style.cursor = "pointer"; });
       this.map.on("mouseleave", layer, () => { this.map.getCanvas().style.cursor = ""; });
+    }
+  }
+
+  private useEnglishBasemapLabels(): void {
+    for (const layer of this.map.getStyle().layers) {
+      if (layer.type !== "symbol" || !usesPlaceName(layer.layout?.["text-field"])) continue;
+      this.map.setLayoutProperty(layer.id, "text-field", ENGLISH_LABEL);
     }
   }
 

@@ -194,6 +194,7 @@ const Exchange = () => {
               </button>
             </div>
             <input
+              data-keep-font-size=""
               inputMode="decimal"
               value={haveStr}
               onChange={(e) => onHaveChange(e.target.value)}
@@ -226,6 +227,7 @@ const Exchange = () => {
               </span>
             </div>
             <input
+              data-keep-font-size=""
               inputMode="decimal"
               value={getStr}
               onChange={(e) => onGetChange(e.target.value)}

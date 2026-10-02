@@ -11,6 +11,11 @@
   inset: 0;
 }
 
+.eazi-map .maplibregl-ctrl-bottom-left,
+.eazi-map .maplibregl-ctrl-bottom-right {
+  bottom: calc(64px + env(safe-area-inset-bottom));
+}
+
 .eazi-map-status {
   position: absolute;
   inset: 0;

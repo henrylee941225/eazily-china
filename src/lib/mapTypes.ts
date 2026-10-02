@@ -8,6 +8,7 @@ export type Place = {
   name?: string;
   formattedAddress?: string;
   coordinate?: LatLng;
+  photos?: Array<{ url: string; title?: string }>;
   [key: string]: unknown;
 };
 

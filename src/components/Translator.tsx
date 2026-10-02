@@ -744,16 +744,10 @@ const ChatPanel = ({ lang, t, target }: { lang: LangDef; t: UIText; target: Targ
   const [sending, setSending] = useState(false);
   const [preview, setPreview] = useState<{ source: string; translated: string; pinyin?: string; bcp47: string } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
-
-  useEffect(() => {
-    // Focus the real input when the Type tab mounts so the cursor/keyboard is ready.
-    inputRef.current?.focus();
-  }, []);
 
   const send = async (raw?: string) => {
     const text = (raw ?? draft).trim();
@@ -858,7 +852,6 @@ const ChatPanel = ({ lang, t, target }: { lang: LangDef; t: UIText; target: Targ
       <div className="pt-2">
         <div className="flex items-center gap-2 rounded-full bg-surface-2 px-2 py-2 pl-4">
           <input
-            ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => {
@@ -870,7 +863,6 @@ const ChatPanel = ({ lang, t, target }: { lang: LangDef; t: UIText; target: Targ
             placeholder={t.chatPlaceholder}
             aria-label={t.chatPlaceholder}
             dir={lang.rtl ? "rtl" : "ltr"}
-            autoFocus
             className="min-w-0 flex-1 bg-transparent text-[15px] text-ink outline-none placeholder:text-ink-secondary"
           />
           <button

@@ -178,21 +178,19 @@ function parseCandidates(raw: unknown): Candidate[] {
 /**
  * Verify a candidate against the Amap text-search POI endpoint.
  * Returns the enriched pick if Amap returns a credible match, else null.
- * Docs: https://lbs.amap.com/api/webservice/guide/api/search#text
+ * Docs: https://lbs.amap.com/api/webservice/guide/api-advanced/newpoisearch
  */
 async function verifyOnAmap(
   candidate: Candidate,
   cityZh: string,
   amapKey: string,
 ): Promise<Pick | null> {
-  const url = new URL("https://restapi.amap.com/v3/place/text");
+  const url = new URL("https://restapi.amap.com/v5/place/text");
   url.searchParams.set("key", amapKey);
   url.searchParams.set("keywords", candidate.name_zh);
-  url.searchParams.set("city", cityZh);
-  url.searchParams.set("citylimit", "true");
-  url.searchParams.set("offset", "5");
-  url.searchParams.set("page", "1");
-  url.searchParams.set("extensions", "base");
+  url.searchParams.set("region", cityZh);
+  url.searchParams.set("city_limit", "true");
+  url.searchParams.set("page_size", "5");
 
   try {
     const r = await fetch(url.toString());

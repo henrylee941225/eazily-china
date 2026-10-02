@@ -1,5 +1,7 @@
 // Central place to purge per-user localStorage on sign-out.
 // Add any new per-user key here — nowhere else.
+import { HOME_CACHE_PREFIX } from "@/lib/homeCache";
+
 const EXACT_KEYS = [
   "home:booking-seen",             // Index.tsx SEEN_KEY
   "eazilychina:onboardingComplete",
@@ -7,6 +9,7 @@ const EXACT_KEYS = [
 ];
 
 const PREFIXES = [
+  HOME_CACHE_PREFIX,     // Home booking and plan snapshots
   "concierge:chat:",   // ConciergeChat transcripts per user
   "pick-img:v1:",      // Home/Today's picks image cache
   "daily-picks:v3:",   // Home/Today's picks list cache

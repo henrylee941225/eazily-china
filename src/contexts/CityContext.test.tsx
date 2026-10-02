@@ -1,38 +1,32 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ getCurrentLocation: vi.fn() }));
 vi.mock("@/integrations/capacitor/geolocation", () => ({ getCurrentLocation: mocks.getCurrentLocation }));
 
 import { CityProvider, useCity } from "./CityContext";
-import { getCityById } from "@/data/cities";
-
 const Probe = () => {
   const { cityId, setCityId } = useCity();
   return <div>
     <span data-testid="city">{cityId}</span>
-    <button onClick={() => setCityId("shanghai")}>Select Shanghai</button>
+    <button onClick={() => setCityId("nanjing")}>Select Nanjing</button>
   </div>;
 };
 
-describe("CityProvider location", () => {
+describe("CityProvider city selection", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("selects the nearest city from the shared location provider", async () => {
-    const [latitude, longitude] = getCityById("beijing").center;
-    mocks.getCurrentLocation.mockResolvedValue({ coords: { latitude, longitude } });
+  it("starts in Shanghai without requesting location", async () => {
+    mocks.getCurrentLocation.mockResolvedValue({ coords: { latitude: 32.0603, longitude: 118.7969 } });
     render(<CityProvider><Probe /></CityProvider>);
-    await waitFor(() => expect(screen.getByTestId("city")).toHaveTextContent("beijing"));
-    expect(mocks.getCurrentLocation).toHaveBeenCalledWith(expect.objectContaining({ enableHighAccuracy: false }));
+    await act(async () => {});
+    expect(screen.getByTestId("city")).toHaveTextContent("shanghai");
+    expect(mocks.getCurrentLocation).not.toHaveBeenCalled();
   });
 
-  it("keeps a manual city choice when location resolves later", async () => {
-    let resolveLocation: (value: unknown) => void;
-    mocks.getCurrentLocation.mockImplementation(() => new Promise((resolve) => { resolveLocation = resolve; }));
+  it("allows a manual city choice", async () => {
     render(<CityProvider><Probe /></CityProvider>);
-    await act(async () => { screen.getByRole("button", { name: "Select Shanghai" }).click(); });
-    const [latitude, longitude] = getCityById("beijing").center;
-    await act(async () => resolveLocation({ coords: { latitude, longitude } }));
-    expect(screen.getByTestId("city")).toHaveTextContent("shanghai");
+    await act(async () => { screen.getByRole("button", { name: "Select Nanjing" }).click(); });
+    expect(screen.getByTestId("city")).toHaveTextContent("nanjing");
   });
 });

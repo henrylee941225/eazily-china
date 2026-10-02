@@ -1,11 +1,9 @@
 // Central feature flags. Keep as compile-time constants — read them
 // through this module so every entry point stays in sync.
 
-// Social sign-in (Google / Apple). When false, the OAuth buttons and the
-// "or" divider are hidden everywhere, so email is the single visible path.
-// Provider config, the OAuth callback handling and handleOAuth code stay
-// intact — flip this to true to bring the buttons back.
-export const SOCIAL_AUTH_ENABLED = false;
+// Show Google and Apple sign-in buttons while provider sign-in is pending.
+// Their click handlers currently display an informational message.
+export const SOCIAL_LOGIN_BUTTONS_ENABLED = true;
 
 // Private transfers (Airport / Hourly / Station). When false:
 //  - Home hides the "Ride" quick tile and the "Airport transfer" card

@@ -1,12 +1,21 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Sunrise, MoreHorizontal } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import type { GeneratedPlan } from "@/contexts/PlanContext";
 import { isPlanSuppressed } from "@/lib/hideFromHome";
+import { HOME_CACHE_MAX_AGE_MS, readHomeCache, writeHomeCache } from "@/lib/homeCache";
 
 type Row = { id: string; title: string; plan: GeneratedPlan; updated_at: string };
+
+const isPlanRow = (value: unknown): value is Row | null => {
+  if (value === null) return true;
+  if (!value || typeof value !== "object") return false;
+  const row = value as { id?: unknown; title?: unknown; plan?: { stops?: unknown } };
+  return typeof row.id === "string" && typeof row.title === "string" &&
+    !!row.plan && Array.isArray(row.plan.stops);
+};
 
 const formatStopTime = (hhmm: string): string => {
   const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm);
@@ -25,27 +34,29 @@ type Props = {
 
 export const TodaysPlanCard = ({ hidden = [], onHide }: Props) => {
   const { user } = useAuth();
-  const [row, setRow] = useState<Row | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    if (!user) { setLoaded(true); return; }
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase
+  const userId = user?.id;
+  const { data: row } = useQuery<Row | null>({
+    queryKey: ["home", "plan", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      if (!userId) return null;
+      const { data, error } = await supabase
         .from("saved_plans")
         .select("id,title,plan,updated_at")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("updated_at", { ascending: false })
         .limit(1);
-      if (cancelled) return;
-      setRow(((data ?? [])[0] as unknown as Row) ?? null);
-      setLoaded(true);
-    })();
-    return () => { cancelled = true; };
-  }, [user]);
+      if (error) throw error;
+      const latest = ((data ?? [])[0] as unknown as Row) ?? null;
+      writeHomeCache(userId, "plan", latest);
+      return latest;
+    },
+    initialData: () => userId ? readHomeCache(userId, "plan", isPlanRow) : undefined,
+    gcTime: HOME_CACHE_MAX_AGE_MS,
+    refetchOnMount: "always",
+  });
 
-  if (!loaded || !row) return null;
+  if (!row) return null;
   if (isPlanSuppressed(hidden, row.id)) return null;
   const stops = row.plan?.stops ?? [];
   if (stops.length === 0) return null;

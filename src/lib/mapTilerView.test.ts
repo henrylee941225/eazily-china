@@ -13,6 +13,7 @@ function makeRenderer() {
     }),
     addSource: vi.fn((id: string) => { sources.set(id, { setData: vi.fn(), getClusterExpansionZoom: vi.fn().mockResolvedValue(15) }); }),
     getSource: vi.fn((id: string) => sources.get(id)), addLayer: vi.fn(), setPaintProperty: vi.fn(), setFilter: vi.fn(),
+    getStyle: vi.fn(() => ({ layers: [] as Array<{ id: string; type: string; layout?: Record<string, unknown> }> })), setLayoutProperty: vi.fn(),
     getContainer: () => ({ clientHeight: 700 }), fitBounds: vi.fn(), setFeatureState: vi.fn(),
     easeTo: vi.fn(), remove: vi.fn(), resize: vi.fn(), touchZoomRotate: { disableRotation: vi.fn() },
     getZoom: () => 12,
@@ -23,7 +24,7 @@ function makeRenderer() {
     Map: class { constructor(options: unknown) { createMap(options); return map; } },
     LngLatBounds: class { constructor() { return bounds; } },
     MapStyle: { STREETS: "streets-v2" },
-    Language: { ENGLISH: "en" },
+    Language: { STYLE_LOCK: "style-lock" },
   } as unknown as typeof import("@maptiler/sdk");
   return { sdk, map, bounds, listeners, sources, createMap };
 }
@@ -40,7 +41,7 @@ describe("MapTiler renderer boundary", () => {
     const view = new MapTilerView(renderer.sdk, document.createElement("div"), "public-key", onSelect, initialCenter, 14);
     const options = renderer.createMap.mock.calls[0][0];
     expect(options.zoom).toBe(14);
-    expect(options.language).toBe("en");
+    expect(options.language).toBe("style-lock");
     expect(options.center[0]).toBeCloseTo(initialGps.longitude, 6);
     expect(options.center[1]).toBeCloseTo(initialGps.latitude, 6);
     const gps = { latitude: 31.2304, longitude: 121.4737 };
@@ -54,6 +55,26 @@ describe("MapTiler renderer boundary", () => {
     expect(data.features[0].geometry.coordinates[1]).toBeCloseTo(gps.latitude, 7);
     renderer.listeners.get("click:eazi-pins")({ features: [{ properties: { placeIndex: 0 } }] });
     expect(onSelect).toHaveBeenCalledWith(place);
+    view.destroy();
+  });
+
+  it("shows only English or Latin basemap names without falling back to local names", async () => {
+    renderer.map.getStyle.mockReturnValue({ layers: [
+      { id: "road-label", type: "symbol", layout: { "text-field": ["coalesce", ["get", "name:en"], ["get", "name"]] } },
+      { id: "city-label", type: "symbol", layout: { "text-field": "{name}" } },
+      { id: "road-shield", type: "symbol", layout: { "text-field": ["get", "ref"] } },
+    ] });
+    const view = new MapTilerView(renderer.sdk, document.createElement("div"), "public-key", vi.fn(), initialCenter, 14);
+    renderer.listeners.get("load")();
+    await view.ready;
+
+    expect(renderer.map.setLayoutProperty).toHaveBeenCalledTimes(2);
+    for (const id of ["road-label", "city-label"]) {
+      expect(renderer.map.setLayoutProperty).toHaveBeenCalledWith(id, "text-field", [
+        "coalesce", ["get", "name:en"], ["get", "name:latin"], "",
+      ]);
+    }
+    expect(renderer.map.setLayoutProperty).not.toHaveBeenCalledWith("road-shield", "text-field", expect.anything());
     view.destroy();
   });
 
