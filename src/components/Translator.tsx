@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { Capacitor } from "@capacitor/core";
+import { Torch } from "@capawesome/capacitor-torch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { speak, hasVoiceForBcp47 } from "@/lib/speech";
@@ -648,9 +650,13 @@ const SignInToTranslate = () => (
   </div>
 );
 
-export const Translator = () => {
+export const Translator = ({ onCameraModeChange }: { onCameraModeChange?: (active: boolean) => void }) => {
   const { session, loading: authLoading } = useAuth();
-  const [tab, setTab] = useState<Tab>("chat");
+  const [tab, setActiveTab] = useState<Tab>("chat");
+  const setTab = (next: Tab) => {
+    setActiveTab(next);
+    onCameraModeChange?.(next === "camera");
+  };
   // The user's own side is never Chinese; coerce legacy stored pairs.
   const stored = useMemo(() => {
     const pair = getStoredPair();
@@ -1386,19 +1392,35 @@ const CameraPanel = ({
 }) => {
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [results, setResults] = useState<CameraResult[]>([]);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const inFlightRef = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const cameraSessionRef = useRef(0);
+  const flashEnabledRef = useRef(false);
+  const flashModeRef = useRef<"track" | "native" | null>(null);
+  const flashBusyRef = useRef(false);
+  const [flashEnabled, setFlashEnabled] = useState(false);
   // idle: prompt tap-to-start · starting: awaiting getUserMedia · live: stream attached
+  // captured: still image remains visible while recognition runs and after it finishes
   // denied: NotAllowedError · unavailable: NotFoundError/NotReadableError/other
-  type CamState = "idle" | "starting" | "live" | "denied" | "unavailable";
+  type CamState = "idle" | "starting" | "live" | "captured" | "denied" | "unavailable";
   const [camState, setCamState] = useState<CamState>("idle");
 
   const stopStream = () => {
+    cameraSessionRef.current += 1;
     const s = streamRef.current;
+    if (flashEnabledRef.current) {
+      flashEnabledRef.current = false;
+      setFlashEnabled(false);
+      if (flashModeRef.current === "native" && Capacitor.isNativePlatform()) {
+        void Torch.disable().catch(() => {});
+      }
+      flashModeRef.current = null;
+    }
     if (s) {
       s.getTracks().forEach((tr) => tr.stop());
       streamRef.current = null;
@@ -1413,26 +1435,100 @@ const CameraPanel = ({
     !!navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === "function";
 
-  const startCamera = async () => {
+  const setTrackFlash = async (stream: MediaStream, enabled: boolean): Promise<boolean> => {
+    const track = stream.getVideoTracks()[0];
+    const capabilities = track?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+    if (!capabilities?.torch) return false;
+    await track.applyConstraints({ advanced: [{ torch: enabled } as MediaTrackConstraintSet] });
+    return true;
+  };
+
+  const enableFlash = async (stream: MediaStream) => {
+    if (flashBusyRef.current) return;
+    flashBusyRef.current = true;
+    try {
+      let mode: "track" | "native" = "native";
+      try {
+        if (await setTrackFlash(stream, true)) mode = "track";
+      } catch {
+        // Native control can still work when the preview track rejects torch constraints.
+      }
+      if (mode === "native") {
+        const { available } = await Torch.isAvailable();
+        if (!available) throw new Error("Flash unavailable");
+        await Torch.enable({ stream });
+      }
+      if (streamRef.current !== stream) {
+        if (mode === "native") await Torch.disable({ stream }).catch(() => {});
+        return;
+      }
+      flashModeRef.current = mode;
+      flashEnabledRef.current = true;
+      setFlashEnabled(true);
+    } catch {
+      toast.error("Flash is unavailable on this device");
+    } finally {
+      flashBusyRef.current = false;
+    }
+  };
+
+  const toggleFlash = async () => {
+    if (flashBusyRef.current || camState === "starting") return;
+    const stream = streamRef.current;
+    if (!stream) {
+      await startCamera(true);
+      return;
+    }
+    if (!flashEnabledRef.current) {
+      await enableFlash(stream);
+      return;
+    }
+    flashBusyRef.current = true;
+    try {
+      if (flashModeRef.current === "track") {
+        if (!(await setTrackFlash(stream, false))) throw new Error("Flash unavailable");
+      } else {
+        await Torch.disable({ stream });
+      }
+      flashModeRef.current = null;
+      flashEnabledRef.current = false;
+      setFlashEnabled(false);
+    } catch {
+      toast.error("Couldn't turn off flash");
+    } finally {
+      flashBusyRef.current = false;
+    }
+  };
+
+  const startCamera = async (enableFlashAfterStart = false) => {
     // Webviews without mediaDevices: silently fall through to native capture sheet.
     if (!hasMediaDevices()) {
       cameraRef.current?.click();
       return;
     }
+    setCapturedImage(null);
     setCamState("starting");
+    const session = ++cameraSessionRef.current;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: { ideal: "environment" } },
         audio: false,
       });
+      if (session !== cameraSessionRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         // Some webviews need an explicit play() after srcObject.
         try { await videoRef.current.play(); } catch { /* autoplay policy */ }
       }
+      if (session !== cameraSessionRef.current) return;
       setCamState("live");
+      if (enableFlashAfterStart) await enableFlash(stream);
     } catch (err: any) {
+      if (session !== cameraSessionRef.current) return;
       const name = String(err?.name ?? "");
       stopStream();
       if (name === "NotAllowedError" || name === "SecurityError") {
@@ -1470,6 +1566,9 @@ const CameraPanel = ({
   const processImage = async (raw: string) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
+    stopStream();
+    setCapturedImage(raw);
+    setCamState("captured");
     setBusy(true);
     const timeoutMs = 45000;
     const timeoutPromise = new Promise<never>((_, reject) =>
@@ -1477,6 +1576,7 @@ const CameraPanel = ({
     );
     try {
       const image = await downscaleImage(raw);
+      setCapturedImage(image);
       setPreview(image);
       const { data, error } = (await Promise.race([
         supabase.functions.invoke("translate-image", {
@@ -1544,17 +1644,14 @@ const CameraPanel = ({
     } catch {
       return;
     }
-    // Stop the stream on capture; user re-taps to restart.
-    stopStream();
-    setCamState("idle");
     await processImage(dataUrl);
   };
 
   const openPhotoFallback = () => cameraRef.current?.click();
 
-  // Camera panel takes over the viewport with a dark aesthetic.
+  // Camera panel takes over the viewport.
   return (
-    <div className="fixed inset-x-0 bottom-0 top-0 z-40 flex flex-col bg-[#0F1114] text-white">
+    <div className="fixed inset-x-0 bottom-0 top-0 z-50 flex flex-col bg-white text-ink">
       {/* Hidden inputs */}
       <input
         ref={cameraRef}
@@ -1587,21 +1684,23 @@ const CameraPanel = ({
             type="button"
             onClick={() => setTab("chat")}
             aria-label="Close camera"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 text-ink"
           >
             <X className="h-5 w-5" strokeWidth={2} />
           </button>
           <h2 className="text-[17px] font-bold">Camera</h2>
           <button
             type="button"
+            onClick={() => { void toggleFlash(); }}
             aria-label="Flash"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white"
+            aria-pressed={flashEnabled}
+            className={`flex h-10 w-10 items-center justify-center rounded-full ${flashEnabled ? "bg-brand-orange text-white" : "bg-surface-2 text-ink"}`}
           >
             <Zap className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
         <div className="mt-4">
-          <SegmentedTabs tab={tab} setTab={setTab} t={t} dark />
+          <SegmentedTabs tab={tab} setTab={setTab} t={t} />
         </div>
       </div>
 
@@ -1615,6 +1714,9 @@ const CameraPanel = ({
           autoPlay
           className={`absolute inset-0 h-full w-full object-cover ${camState === "live" ? "opacity-100" : "opacity-0"}`}
         />
+        {camState === "captured" && capturedImage && (
+          <img src={capturedImage} alt="Captured photo" className="absolute inset-0 h-full w-full object-contain" />
+        )}
 
         {/* LIVE · MENU chip — only while stream is actually live */}
         {camState === "live" && (
@@ -1632,14 +1734,14 @@ const CameraPanel = ({
         {camState === "idle" && (
           <button
             type="button"
-            onClick={startCamera}
-            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/50 px-8 text-center text-white"
+            onClick={() => { void startCamera(); }}
+            className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white px-8 text-center text-ink"
           >
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-2">
               <CameraIcon className="h-7 w-7" strokeWidth={2} />
             </span>
             <span className="text-[16px] font-semibold">Tap to start camera</span>
-            <span className="max-w-[260px] text-[13px] text-white/70">
+            <span className="max-w-[260px] text-[13px] text-ink-secondary">
               We'll ask for camera access. You can also pick a photo instead.
             </span>
           </button>
@@ -1647,34 +1749,34 @@ const CameraPanel = ({
 
         {/* Starting: spinner */}
         {camState === "starting" && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/60 text-white">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white text-ink">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="text-[13px] text-white/80">Starting camera…</span>
+            <span className="text-[13px] text-ink-secondary">Starting camera…</span>
           </div>
         )}
 
         {/* Denied: permission error with photo fallback */}
         {camState === "denied" && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 text-center text-white">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-red/20 ring-1 ring-brand-red/40">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white px-8 text-center text-ink">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-red/10">
               <CameraIcon className="h-6 w-6 text-brand-red" strokeWidth={2} />
             </span>
             <span className="text-[16px] font-semibold">Camera access denied</span>
-            <span className="max-w-[280px] text-[13px] text-white/75">
+            <span className="max-w-[280px] text-[13px] text-ink-secondary">
               Enable camera access for eazilyChina in your device settings, then tap to try again.
             </span>
             <div className="mt-2 flex flex-col items-center gap-2">
               <button
                 type="button"
                 onClick={() => setCamState("idle")}
-                className="rounded-full bg-white px-4 py-2 text-[13px] font-semibold text-ink"
+                className="rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-white"
               >
                 Try again
               </button>
               <button
                 type="button"
                 onClick={openPhotoFallback}
-                className="rounded-full bg-white/10 px-4 py-2 text-[13px] font-semibold text-white ring-1 ring-white/20"
+                className="rounded-full bg-surface-2 px-4 py-2 text-[13px] font-semibold text-ink"
               >
                 Take a photo instead
               </button>
@@ -1684,18 +1786,18 @@ const CameraPanel = ({
 
         {/* Unavailable: no camera / in use */}
         {camState === "unavailable" && (
-          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/70 px-8 text-center text-white">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20">
+          <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-white px-8 text-center text-ink">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-2">
               <CameraIcon className="h-6 w-6" strokeWidth={2} />
             </span>
             <span className="text-[16px] font-semibold">Camera unavailable</span>
-            <span className="max-w-[280px] text-[13px] text-white/75">
+            <span className="max-w-[280px] text-[13px] text-ink-secondary">
               We couldn't reach the camera. It may be in use by another app.
             </span>
             <button
               type="button"
               onClick={openPhotoFallback}
-              className="mt-2 rounded-full bg-white px-4 py-2 text-[13px] font-semibold text-ink"
+              className="mt-2 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-white"
             >
               Take a photo instead
             </button>
@@ -1703,32 +1805,48 @@ const CameraPanel = ({
         )}
 
         {/* Preview / results stack */}
-        <div className="absolute inset-x-0 top-14 z-10 space-y-2 px-4">
-          {busy && preview && (
-            <div className="flex items-center gap-3 rounded-2xl bg-black/70 p-3 text-white backdrop-blur">
-              <img src={preview} alt={t.translating} className="h-14 w-14 rounded-lg object-cover" />
-              <div className="flex items-center gap-2 text-sm text-white/80">
-                <Loader2 className="h-4 w-4 animate-spin" /> {t.reading}
+        {((busy && !!preview) || results.length > 0) && (
+          <div
+            role="region"
+            aria-label="Translation results"
+            tabIndex={0}
+            className="absolute inset-x-0 bottom-4 top-4 z-10 space-y-3 overflow-y-auto overscroll-contain px-4 pb-2"
+          >
+            {busy && preview && (
+              <div className="flex items-center gap-3 rounded-2xl bg-white/95 p-3 text-ink shadow-lg">
+                <img src={preview} alt={t.translating} className="h-14 w-14 rounded-lg object-cover" />
+                <div className="flex items-center gap-2 text-sm text-ink-secondary">
+                  <Loader2 className="h-4 w-4 animate-spin" /> {t.reading}
+                </div>
               </div>
-            </div>
-          )}
-          {results.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              onClick={() => speak(r.translated, "en-US")}
-              className="flex w-full items-center justify-between gap-3 rounded-2xl bg-black/70 px-4 py-3 text-left text-white backdrop-blur"
-            >
-              <div className="min-w-0">
-                <div className="truncate text-[15px] font-semibold">{r.translated || "—"}</div>
+            )}
+            {results.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => speak(r.translated, "en-US")}
+                className="flex min-h-40 w-full flex-col gap-3 rounded-3xl bg-white/95 p-5 text-left text-ink shadow-xl"
+              >
+                <div className="flex w-full items-center justify-between gap-3 text-[12px] font-semibold text-ink-secondary">
+                  <span>Translation</span>
+                  <Volume2 className="h-5 w-5 shrink-0" />
+                </div>
+                <p className="w-full whitespace-pre-wrap break-words text-[17px] font-semibold leading-7">
+                  {r.translated || "—"}
+                </p>
                 {r.source && (
-                  <div className="mt-0.5 truncate text-[12px] text-white/60">{r.source}</div>
+                  <div className="w-full border-t border-hairline pt-3">
+                    <span className="text-[12px] font-semibold text-ink-secondary">Original</span>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-6 text-ink-secondary">{r.source}</p>
+                  </div>
                 )}
-              </div>
-              <Volume2 className="h-4 w-4 shrink-0 text-white/70" />
-            </button>
-          ))}
-        </div>
+                {r.pinyin && (
+                  <p className="w-full whitespace-pre-wrap break-words text-[13px] leading-5 text-ink-secondary">{r.pinyin}</p>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Helper text */}
         {camState === "live" && (
@@ -1741,12 +1859,12 @@ const CameraPanel = ({
         )}
 
         {/* Neutral background behind the video / overlays */}
-        <div className="absolute inset-0 -z-10 bg-[#0F1114]" />
+        <div className="absolute inset-0 -z-10 bg-white" />
       </div>
 
       {/* Bottom camera controls */}
       <div
-        className="flex items-center justify-around gap-6 border-t border-white/10 bg-[#0F1114] px-6 pt-4"
+        className="flex items-center justify-around gap-6 border-t border-hairline bg-white px-6 pt-4"
         style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)" }}
       >
         <button
@@ -1754,7 +1872,7 @@ const CameraPanel = ({
           onClick={() => galleryRef.current?.click()}
           disabled={busy}
           aria-label={t.pickGallery}
-          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-white disabled:opacity-50"
+          className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-2 text-ink disabled:opacity-50"
         >
           <ImagePlus className="h-5 w-5" strokeWidth={2} />
         </button>
@@ -1764,17 +1882,21 @@ const CameraPanel = ({
           onClick={() => {
             if (busy) return;
             if (camState === "live") captureFrame();
-            else if (camState === "idle") startCamera();
+            else if (camState === "idle" || camState === "captured") startCamera();
             else openPhotoFallback();
           }}
           disabled={busy || camState === "starting"}
-          aria-label={t.takePhoto}
-          className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-white ring-4 ring-white/25 disabled:opacity-60"
+          aria-label={camState === "captured" ? "Retake photo" : t.takePhoto}
+          className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-ink ring-4 ring-ink/10 disabled:opacity-60"
         >
           {busy ? (
             <Loader2 className="h-6 w-6 animate-spin text-ink" />
           ) : (
-            <span className="h-14 w-14 rounded-full bg-white ring-2 ring-ink/10" />
+            camState === "captured" ? (
+              <CameraIcon className="h-7 w-7 text-white" strokeWidth={2} />
+            ) : (
+              <span className="h-14 w-14 rounded-full bg-white" />
+            )
           )}
         </button>
 
@@ -1783,7 +1905,7 @@ const CameraPanel = ({
             type="button"
             onClick={() => setResults([])}
             aria-label={t.clearResults}
-            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-2 text-ink"
           >
             <X className="h-5 w-5" strokeWidth={2} />
           </button>
@@ -1791,7 +1913,7 @@ const CameraPanel = ({
           <button
             type="button"
             aria-label="Save"
-            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/10 text-white"
+            className="flex h-11 w-11 items-center justify-center rounded-2xl bg-surface-2 text-ink"
           >
             <Bookmark className="h-5 w-5" strokeWidth={2} />
           </button>

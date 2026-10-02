@@ -66,7 +66,7 @@ export const BottomTabBar = () => {
   return (
     <nav
       className={`pointer-events-none fixed inset-x-0 bottom-0 z-50 px-4 pb-1 ${keyboardVisible ? "invisible" : ""}`}
-      style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.25rem)" }}
+      style={{ paddingBottom: "max(0px, calc(env(safe-area-inset-bottom) - 16px))" }}
       aria-label="Primary"
       aria-hidden={keyboardVisible}
     >
