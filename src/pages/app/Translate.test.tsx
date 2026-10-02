@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { Capacitor } from "@capacitor/core";
 
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: () => ({ session: { user: { id: "user-a" } }, loading: false }),
@@ -12,8 +13,27 @@ const torch = vi.hoisted(() => ({
   disable: vi.fn(),
 }));
 const invoke = vi.hoisted(() => vi.fn());
+const readAloud = vi.hoisted(() => vi.fn(() => true));
+const nativeSpeech = vi.hoisted(() => ({
+  speak: vi.fn(),
+  cancel: vi.fn(),
+  activateAudioSession: vi.fn(),
+  deactivateAudioSession: vi.fn(),
+  addListener: vi.fn(),
+  listeners: new Map<string, (event: { utteranceId: string; error?: string }) => void>(),
+}));
+const toastError = vi.hoisted(() => vi.fn());
 
 vi.mock("@capawesome/capacitor-torch", () => ({ Torch: torch }));
+vi.mock("@capacitor/keyboard", () => ({
+  Keyboard: { addListener: vi.fn(async () => ({ remove: vi.fn() })) },
+}));
+vi.mock("@capgo/capacitor-speech-synthesis", () => ({ SpeechSynthesis: nativeSpeech }));
+vi.mock("sonner", () => ({ toast: { error: toastError } }));
+vi.mock("@/lib/speech", () => ({
+  speak: readAloud,
+  hasVoiceForBcp47: vi.fn(() => true),
+}));
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { functions: { invoke } },
 }));
@@ -23,11 +43,22 @@ import Translate from "./Translate";
 describe("Translate camera mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    nativeSpeech.listeners.clear();
+    nativeSpeech.addListener.mockImplementation(async (event, listener) => {
+      nativeSpeech.listeners.set(event, listener);
+      return { remove: vi.fn() };
+    });
+    nativeSpeech.cancel.mockResolvedValue(undefined);
+    nativeSpeech.activateAudioSession.mockResolvedValue(undefined);
+    nativeSpeech.deactivateAudioSession.mockResolvedValue(undefined);
+    localStorage.removeItem("ez.translate.pair");
   });
 
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    localStorage.removeItem("ez.translate.pair");
   });
 
   beforeAll(() => {
@@ -181,5 +212,46 @@ describe("Translate camera mode", () => {
     expect(screen.getByText(/菜单第二项/)).toBeVisible();
     expect(screen.getByRole("region", { name: "Translation results" })).toHaveClass("overflow-y-auto");
     expect(screen.getByAltText("Captured photo")).toBeVisible();
+  });
+
+  it("reads the camera translation in the selected target language", async () => {
+    vi.spyOn(Capacitor, "isNativePlatform").mockReturnValue(true);
+    vi.spyOn(Capacitor, "getPlatform").mockReturnValue("ios");
+    nativeSpeech.speak.mockResolvedValue({ utteranceId: "utterance-1" });
+    localStorage.setItem("ez.translate.pair", JSON.stringify({ source: "de", target: "zh" }));
+    invoke.mockResolvedValue({ data: { source: "你好", translated: "Guten Tag" }, error: null });
+    vi.stubGlobal("Image", class {
+      width = 640;
+      height = 480;
+      onload: (() => void) | null = null;
+      set src(_value: string) { queueMicrotask(() => this.onload?.()); }
+    });
+
+    render(<MemoryRouter><Translate /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Kamera" }));
+    const galleryInput = document.querySelectorAll<HTMLInputElement>('input[type="file"]')[1];
+    fireEvent.change(galleryInput, {
+      target: { files: [new File(["image"], "menu.jpg", { type: "image/jpeg" })] },
+    });
+
+    await screen.findByText("Guten Tag");
+    fireEvent.click(screen.getByRole("button", { name: "Read translation aloud" }));
+    await waitFor(() => expect(nativeSpeech.speak).toHaveBeenCalledWith(expect.objectContaining({
+      text: "Guten Tag",
+      language: "de-DE",
+      queueStrategy: "Flush",
+    })));
+    expect(nativeSpeech.activateAudioSession).toHaveBeenCalledWith({ category: "Playback" });
+    expect(screen.getByRole("button", { name: "Stop reading translation" })).toHaveAttribute("aria-pressed", "true");
+    expect(readAloud).not.toHaveBeenCalled();
+
+    act(() => nativeSpeech.listeners.get("end")?.({ utteranceId: "utterance-1" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Read translation aloud" })).toHaveAttribute("aria-pressed", "false"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Read translation aloud" }));
+    await screen.findByRole("button", { name: "Stop reading translation" });
+    act(() => nativeSpeech.listeners.get("error")?.({ utteranceId: "utterance-1", error: "Audio service failed" }));
+    expect(screen.getByRole("button", { name: "Read translation aloud" })).toHaveAttribute("aria-pressed", "false");
+    expect(toastError).toHaveBeenCalledOnce();
   });
 });

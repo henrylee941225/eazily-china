@@ -1,7 +1,5 @@
-// Single canonical TTS path for the whole app. Every surface that plays
-// translated speech (Quick phrases rows, Show card, Text tab speaker, Talk
-// bubbles) resolves its voice through resolveVoice() below so the same locale
-// always sounds identical.
+// Shared Web Speech path for browser playback. Native Camera playback uses the
+// platform speech engine so it can manage the iOS audio session explicitly.
 
 export type SpeechLang = "zh" | "en" | "cht" | "yue" | "ja" | "ko";
 
@@ -73,21 +71,30 @@ const resolveVoice = (bcp47: string): SpeechSynthesisVoice | null => {
   return null;
 };
 
-// THE canonical speak. All surfaces route through this.
-export const speak = (text: string, bcp47: string): boolean => {
+// Browser speech playback with locale-specific voice selection.
+export const speak = (text: string, bcp47: string, onError?: () => void): boolean => {
   if (typeof window === "undefined" || !("speechSynthesis" in window) || !text) return false;
   const voice = resolveVoice(bcp47);
-  if (!voice) return false;
+  // The engine can select a default voice for the requested locale while its
+  // voice list is still loading, but a loaded list without a match is unsupported.
+  if (!voice && speechSynthesis.getVoices().length > 0) return false;
   const prefix = bcp47.toLowerCase().split("-")[0];
   const u = new SpeechSynthesisUtterance(text);
   u.lang = bcp47;
-  u.voice = voice;
+  if (voice) u.voice = voice;
   u.rate = prefix === "zh" ? 0.95 : 1.0;
   u.pitch = 1.0;
   u.volume = 1.0;
-  speechSynthesis.cancel();
-  speechSynthesis.speak(u);
-  return true;
+  u.onerror = (event) => {
+    if (event.error !== "canceled" && event.error !== "interrupted") onError?.();
+  };
+  try {
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 // Thin enum wrapper for call sites that carry a SpeechLang. Selection logic

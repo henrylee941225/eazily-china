@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
+import { SpeechSynthesis } from "@capgo/capacitor-speech-synthesis";
 import { Torch } from "@capawesome/capacitor-torch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1404,6 +1405,9 @@ const CameraPanel = ({
   const flashModeRef = useRef<"track" | "native" | null>(null);
   const flashBusyRef = useRef(false);
   const [flashEnabled, setFlashEnabled] = useState(false);
+  const [readingId, setReadingId] = useState<string | null>(null);
+  const readingRequestRef = useRef(0);
+  const currentUtteranceRef = useRef<string | null>(null);
   // idle: prompt tap-to-start · starting: awaiting getUserMedia · live: stream attached
   // captured: still image remains visible while recognition runs and after it finishes
   // denied: NotAllowedError · unavailable: NotFoundError/NotReadableError/other
@@ -1563,6 +1567,39 @@ const CameraPanel = ({
   // Belt-and-braces: stop on unmount.
   useEffect(() => () => stopStream(), []);
 
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let disposed = false;
+    const listeners: Array<{ remove: () => Promise<void> }> = [];
+    const listen = async (event: "end" | "error") => {
+      const handle = await SpeechSynthesis.addListener(event, ({ utteranceId, ...details }) => {
+        if (currentUtteranceRef.current !== utteranceId) return;
+        currentUtteranceRef.current = null;
+        setReadingId(null);
+        if (event === "error" && details.error !== "Speech was cancelled") {
+          toast.error(t.talkNoAudio);
+        }
+        if (Capacitor.getPlatform() === "ios") {
+          void SpeechSynthesis.deactivateAudioSession().catch(() => {});
+        }
+      });
+      if (disposed) void handle.remove();
+      else listeners.push(handle);
+    };
+    void listen("end").catch((error) => console.error("Speech listener failed", error));
+    void listen("error").catch((error) => console.error("Speech listener failed", error));
+    return () => {
+      disposed = true;
+      readingRequestRef.current += 1;
+      listeners.forEach((handle) => { void handle.remove(); });
+      void SpeechSynthesis.cancel().catch(() => {}).finally(() => {
+        if (Capacitor.getPlatform() === "ios") {
+          void SpeechSynthesis.deactivateAudioSession().catch(() => {});
+        }
+      });
+    };
+  }, []);
+
   const processImage = async (raw: string) => {
     if (inFlightRef.current) return;
     inFlightRef.current = true;
@@ -1648,6 +1685,52 @@ const CameraPanel = ({
   };
 
   const openPhotoFallback = () => cameraRef.current?.click();
+
+  const readTranslation = async (result: CameraResult) => {
+    if (!result.translated) return;
+    if (!Capacitor.isNativePlatform()) {
+      if (!speak(result.translated, lang.bcp47, () => toast.error(t.talkNoAudio))) {
+        toast.error(t.talkNoAudio);
+      }
+      return;
+    }
+
+    const request = ++readingRequestRef.current;
+    try {
+      if (readingId === result.id) {
+        currentUtteranceRef.current = null;
+        setReadingId(null);
+        await SpeechSynthesis.cancel();
+        if (Capacitor.getPlatform() === "ios") await SpeechSynthesis.deactivateAudioSession();
+        return;
+      }
+      if (Capacitor.getPlatform() === "ios") {
+        await SpeechSynthesis.activateAudioSession({ category: "Playback" });
+      }
+      if (request !== readingRequestRef.current) return;
+      currentUtteranceRef.current = null;
+      setReadingId(result.id);
+      const { utteranceId } = await SpeechSynthesis.speak({
+        text: result.translated,
+        language: lang.bcp47,
+        rate: lang.code === "zh" ? 0.95 : 1,
+        pitch: 1,
+        volume: 1,
+        queueStrategy: "Flush",
+      });
+      if (request === readingRequestRef.current) currentUtteranceRef.current = utteranceId;
+    } catch (error) {
+      console.error("Native speech failed", error);
+      if (request === readingRequestRef.current) {
+        currentUtteranceRef.current = null;
+        setReadingId(null);
+        toast.error(t.talkNoAudio);
+        if (Capacitor.getPlatform() === "ios") {
+          void SpeechSynthesis.deactivateAudioSession().catch(() => {});
+        }
+      }
+    }
+  };
 
   // Camera panel takes over the viewport.
   return (
@@ -1821,15 +1904,22 @@ const CameraPanel = ({
               </div>
             )}
             {results.map((r) => (
-              <button
+              <div
                 key={r.id}
-                type="button"
-                onClick={() => speak(r.translated, "en-US")}
                 className="flex min-h-40 w-full flex-col gap-3 rounded-3xl bg-white/95 p-5 text-left text-ink shadow-xl"
               >
                 <div className="flex w-full items-center justify-between gap-3 text-[12px] font-semibold text-ink-secondary">
                   <span>Translation</span>
-                  <Volume2 className="h-5 w-5 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => { void readTranslation(r); }}
+                    disabled={!r.translated}
+                    aria-label={readingId === r.id ? "Stop reading translation" : "Read translation aloud"}
+                    aria-pressed={readingId === r.id}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-2 text-ink disabled:opacity-50"
+                  >
+                    {readingId === r.id ? <Square className="h-4 w-4" fill="currentColor" /> : <Volume2 className="h-5 w-5" />}
+                  </button>
                 </div>
                 <p className="w-full whitespace-pre-wrap break-words text-[17px] font-semibold leading-7">
                   {r.translated || "—"}
@@ -1843,7 +1933,7 @@ const CameraPanel = ({
                 {r.pinyin && (
                   <p className="w-full whitespace-pre-wrap break-words text-[13px] leading-5 text-ink-secondary">{r.pinyin}</p>
                 )}
-              </button>
+              </div>
             ))}
           </div>
         )}

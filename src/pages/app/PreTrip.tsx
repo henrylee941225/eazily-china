@@ -106,9 +106,9 @@ const PreTrip = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white pb-40">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-white">
       {/* Top chrome — back + overflow only */}
-      <div className="sticky top-0 z-30 bg-white pt-safe">
+      <div className="z-30 shrink-0 bg-white pt-safe">
         <div className="mx-auto flex w-full max-w-[440px] items-center justify-between px-4 py-3">
           <button
             type="button"
@@ -129,7 +129,7 @@ const PreTrip = () => {
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-[440px] px-4">
+      <main className="mx-auto min-h-0 w-full max-w-[440px] flex-1 overflow-y-auto px-4 pb-4">
         {complete ? (
           <CompletedState
             firstName={firstNameFromProfile(profile)}
@@ -156,7 +156,7 @@ const PreTrip = () => {
               </div>
             </div>
 
-            <ul className="mt-5 space-y-3">
+            <ul className="mt-5 space-y-2">
               {PRETRIP_TASKS.map((task) => (
                 <TaskRow
                   key={task.slug}
@@ -177,7 +177,7 @@ const PreTrip = () => {
 
       {!complete && (
         <div
-          className="fixed inset-x-0 bottom-0 z-30 bg-white pt-3"
+          className="z-30 shrink-0 bg-white pt-3"
           style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
           <div className="mx-auto w-full max-w-[440px] border-t border-[hsl(var(--border,240_5%_89%))] px-4 pt-3">
@@ -256,7 +256,7 @@ const TaskRow = ({
           : "border-[hsl(var(--border,240_5%_89%))] bg-white"
       }`}
     >
-      <div className="flex items-center gap-3 px-4 py-4">
+      <div className="flex items-center gap-3 px-4 py-3">
         <button
           type="button"
           aria-label={done ? "Mark as not done" : "Mark as done"}
@@ -377,7 +377,7 @@ const CompletedState = ({
   firstName: string;
   onEnter: () => void;
 }) => (
-  <div className="-mx-4 min-h-[calc(100vh-120px)] bg-ink px-6 pt-[18vh]">
+  <div className="-mx-4 flex min-h-full items-center justify-center bg-white px-6 py-8">
     <div className="mx-auto flex max-w-[360px] flex-col items-center text-center">
       <div
         className="flex h-20 w-20 items-center justify-center rounded-full text-white shadow-[0_20px_60px_-10px_hsl(var(--brand-orange)/0.55)]"
@@ -388,22 +388,22 @@ const CompletedState = ({
       >
         <Check className="h-9 w-9" strokeWidth={2.5} />
       </div>
-      <h1 className="mt-8 text-[28px] font-extrabold leading-[1.15] tracking-tight text-white">
+      <h1 className="mt-8 text-[28px] font-extrabold leading-[1.15] tracking-tight text-ink">
         You're all set, {firstName}.
       </h1>
-      <p className="mt-3 text-[15px] leading-[1.5] text-white/70">
+      <p className="mt-3 text-[15px] leading-[1.5] text-ink-secondary">
         Your concierge is ready — anything you need, just ask.
       </p>
-      <div className="mt-6 flex w-full items-start gap-3 rounded-2xl bg-white/[0.06] px-4 py-3.5 text-left">
+      <div className="mt-6 flex w-full items-start gap-3 rounded-2xl bg-surface-2 px-4 py-3.5 text-left">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--brand-orange))]" strokeWidth={2} />
-        <div className="text-[13px] leading-[1.45] text-white/80">
+        <div className="text-[13px] leading-[1.45] text-ink-secondary">
           Ask me anything or book a service — I'll handle the rest on the ground.
         </div>
       </div>
       <button
         type="button"
         onClick={onEnter}
-        className="mt-6 flex h-[52px] w-full items-center justify-center rounded-full bg-white text-[15px] font-semibold text-ink"
+        className="mt-6 flex h-[52px] w-full items-center justify-center rounded-full bg-ink text-[15px] font-semibold text-white"
       >
         Enter eazilyChina
       </button>
