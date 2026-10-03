@@ -109,7 +109,7 @@ export const HomeRecommendations = () => {
   const [open, setOpen] = useState(false);
 
   const userInterests = useMemo<InterestId[]>(
-    () => (((profile as any)?.interests ?? []) as string[]).filter(isInterestId),
+    () => (profile?.interests ?? []).filter(isInterestId),
     [profile],
   );
 
@@ -139,10 +139,11 @@ export const HomeRecommendations = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (skipForCity || !user) { setPicks(null); return; }
+    if (skipForCity || !user) { setPicks(null); setLoading(false); return; }
     const cached = readCache();
-    if (cached) { setPicks(cached); return; }
+    if (cached) { setPicks(cached); setLoading(false); return; }
     let cancelled = false;
+    setPicks(null);
     setLoading(true);
     (async () => {
       try {

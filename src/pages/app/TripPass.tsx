@@ -85,7 +85,7 @@ const FAILURE_COPY: Record<string, string> = {
   cancelled: "Purchase cancelled. Nothing was charged.",
   declined: "The App Store couldn't take payment. Check your payment method in Settings, then try again.",
   store_unavailable: "The App Store isn't available right now. Please try again in a moment.",
-  already_owned: "The App Store says you already own this. Use Restore purchases in Account to bring it back.",
+  already_owned: "The App Store says you already own this.",
   pending: "Your payment is waiting for approval in the App Store. We'll activate your pass as soon as it goes through.",
   generic: "We couldn't complete the purchase. Nothing extra was charged — please try again.",
   active: "You already have an active Trip Pass, so there's nothing to buy.",

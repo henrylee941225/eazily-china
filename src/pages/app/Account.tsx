@@ -1,12 +1,10 @@
-import { useMemo, useState } from "react";
-import { toast } from "sonner";
-import { useBookingAllowance, fetchBookingAllowance } from "@/hooks/useBookingAllowance";
-import { isRevenueCatAvailable, restoreTripPassPurchases } from "@/integrations/median/revenuecat";
+import { useMemo } from "react";
+import { useBookingAllowance } from "@/hooks/useBookingAllowance";
 import { TripDatesNudge } from "@/components/trip/TripDatesNudge";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import {
-  Settings, Calendar, Ticket, RotateCcw, ClipboardCheck, CalendarCheck, Languages,
+  Settings, Calendar, Ticket, ClipboardCheck, CalendarCheck, Languages,
   KeyRound, Bell, ChevronRight, Sparkles, Zap, Coins, FileText, Shield, Cookie, Trash2,
   type LucideIcon,
 } from "lucide-react";
@@ -56,30 +54,7 @@ const Account = () => {
   const chipsShown = useMemo(() => interestSlugs.slice(0, 3), [interestSlugs]);
   const overflowCount = Math.max(0, interestSlugs.length - chipsShown.length);
 
-  const { allowance, refresh: refreshAllowance } = useBookingAllowance();
-  const storeAvailable = isRevenueCatAvailable();
-  const [restoring, setRestoring] = useState(false);
-  const handleRestore = async () => {
-    if (!user?.id || restoring) return;
-    setRestoring(true);
-    const res = await restoreTripPassPurchases(user.id);
-    if (!res.ok) {
-      setRestoring(false);
-      toast.error("Couldn't reach the App Store. Please try again in a moment.");
-      return;
-    }
-    // The webhook grants server-side; poll briefly for it.
-    const started = Date.now();
-    let found = await fetchBookingAllowance(user.id).catch(() => null);
-    while (!found && Date.now() - started < 20_000) {
-      await new Promise((r) => setTimeout(r, 2500));
-      found = await fetchBookingAllowance(user.id).catch(() => null);
-    }
-    await refreshAllowance();
-    setRestoring(false);
-    if (found) toast.success("Your Trip Pass is active.");
-    else toast("No active Trip Pass found to restore. If you've just bought one, check again in a minute.");
-  };
+  const { allowance } = useBookingAllowance();
 
   const handleSignOut = async () => {
     await signOut();
@@ -196,13 +171,6 @@ const Account = () => {
             title="Trip Pass"
             trailing={<MetaText>{allowance ? `${allowance.remaining} bookings left` : "Not active"}</MetaText>}
             onClick={() => navigate("/trip-pass")}
-          />
-          <Row
-            icon={RotateCcw}
-            title={restoring ? "Restoring…" : "Restore purchases"}
-            trailing={storeAvailable ? undefined : <MetaText>In the app</MetaText>}
-            onClick={storeAvailable && !restoring ? handleRestore : undefined}
-            disabled={!storeAvailable || restoring}
           />
           <Row
             icon={Zap}

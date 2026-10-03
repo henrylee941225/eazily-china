@@ -108,8 +108,8 @@ const App = () => (
               <Route path="/onboarding/location" element={<Navigate to="/welcome/location" replace />} />
               {/* Home hub — public; guest state renders when no session */}
               <Route path="/" element={<Index />} />
+              <Route path="/map" element={<RequireAuth><MapTest /></RequireAuth>} />
               {/* Public guide / utility screens — anonymous access */}
-              <Route path="/map" element={<MapTest />} />
               <Route path="/translate" element={<Translate />} />
               <Route path="/translate/phrases" element={<QuickPhrases />} />
               <Route path="/stays" element={<Stays />} />

@@ -75,8 +75,8 @@ const TravelPreferences = () => {
   };
 
   return (
-    <AppLayout title="Travel preferences" backTo="/account" showLiveActivity={false} hasBottomBar>
-      <div className="mx-auto max-w-[440px] space-y-6">
+    <AppLayout title="Travel preferences" backTo="/account" showLiveActivity={false} hideTabBar>
+      <div className="mx-auto max-w-[440px] space-y-6 pb-28">
         {/* Callout */}
         <div className="flex items-start gap-3 rounded-2xl bg-[hsl(var(--tint-warm))] p-4">
           <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[hsl(var(--brand-red))]" strokeWidth={2} />
@@ -202,8 +202,11 @@ const TravelPreferences = () => {
         </section>
       </div>
 
-      {/* Sticky CTA — sits above the floating nav via the shared inset. */}
-      <div className="bottom-above-nav fixed inset-x-0 z-40 border-t border-border bg-white/95 px-4 py-3 backdrop-blur">
+      {/* Sticky CTA */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 px-4 py-3 backdrop-blur"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}
+      >
         <div className="mx-auto max-w-[440px]">
           <button
             type="button"

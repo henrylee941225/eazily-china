@@ -17,7 +17,7 @@ type Tab = {
 
 const TABS: Tab[] = [
   { to: "/", label: "Home", icon: Home, end: true },
-  { to: "/map", label: "Maps", icon: MapIcon },
+  { to: "/map", label: "Maps", icon: MapIcon, requireAuth: true },
   { to: "/bookings", label: "Bookings", icon: CalendarCheck, requireAuth: true },
   { to: "/translate", label: "Translate", icon: Languages },
 ];

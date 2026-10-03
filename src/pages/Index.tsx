@@ -60,6 +60,7 @@ import { HOME_CACHE_MAX_AGE_MS, readHomeCache, writeHomeCache } from "@/lib/home
 // Routes that require sign-in. When the visitor is a guest, navigating any of
 // these should bounce through /auth?next=<target> so they return here on success.
 const AUTH_ROUTES = new Set<string>([
+  "/map",
   "/transfers",
   "/book/restaurant",
   "/ai/plan",

@@ -41,4 +41,9 @@ describe("BottomTabBar keyboard visibility", () => {
     view.unmount();
     expect(native.remove).toHaveBeenCalledTimes(2);
   });
+
+  it("sends signed-out Maps visitors to sign-in and returns them to Maps", () => {
+    render(<MemoryRouter><BottomTabBar /></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Maps" })).toHaveAttribute("href", "/auth?next=%2Fmap");
+  });
 });

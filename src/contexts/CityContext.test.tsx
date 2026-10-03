@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ getCurrentLocation: vi.fn() }));
@@ -16,17 +16,26 @@ const Probe = () => {
 describe("CityProvider city selection", () => {
   beforeEach(() => vi.resetAllMocks());
 
-  it("starts in Shanghai without requesting location", async () => {
-    mocks.getCurrentLocation.mockResolvedValue({ coords: { latitude: 32.0603, longitude: 118.7969 } });
+  it("selects the nearest city from the current location", async () => {
+    mocks.getCurrentLocation.mockResolvedValue({ coords: { latitude: 31.25, longitude: 120.75 } });
     render(<CityProvider><Probe /></CityProvider>);
-    await act(async () => {});
-    expect(screen.getByTestId("city")).toHaveTextContent("shanghai");
-    expect(mocks.getCurrentLocation).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByTestId("city")).toHaveTextContent("suzhou"));
+    expect(mocks.getCurrentLocation).toHaveBeenCalledTimes(1);
   });
 
-  it("allows a manual city choice", async () => {
+  it("keeps Shanghai when location is unavailable", async () => {
+    mocks.getCurrentLocation.mockRejectedValue(new Error("Location unavailable"));
+    render(<CityProvider><Probe /></CityProvider>);
+    await waitFor(() => expect(mocks.getCurrentLocation).toHaveBeenCalledTimes(1));
+    expect(screen.getByTestId("city")).toHaveTextContent("shanghai");
+  });
+
+  it("does not replace a manual city choice when location arrives later", async () => {
+    let resolveLocation: (position: { coords: { latitude: number; longitude: number } }) => void;
+    mocks.getCurrentLocation.mockImplementation(() => new Promise((resolve) => { resolveLocation = resolve; }));
     render(<CityProvider><Probe /></CityProvider>);
     await act(async () => { screen.getByRole("button", { name: "Select Nanjing" }).click(); });
+    await act(async () => { resolveLocation({ coords: { latitude: 31.2330, longitude: 121.4760 } }); });
     expect(screen.getByTestId("city")).toHaveTextContent("nanjing");
   });
 });

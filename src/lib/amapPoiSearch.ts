@@ -1,6 +1,7 @@
 import type { LatLng } from "@/lib/geoDatum";
 import type { AutocompleteSuggestion, Place } from "@/lib/mapTypes";
 import { translatePoiTexts } from "@/lib/poiTranslation";
+import { supabase } from "@/integrations/supabase/client";
 
 type AmapPoi = {
   id?: unknown;
@@ -12,21 +13,15 @@ type AmapPoi = {
   photos?: unknown;
 };
 
-type AmapResponse = { status?: string; info?: string; pois?: AmapPoi[] };
+type AmapResponse = { pois?: AmapPoi[]; tips?: AmapPoi[]; error?: string };
 type SearchRequest = {
-  action: "nearby" | "text" | "detail";
+  action: "nearby" | "suggest" | "detail";
   query?: string;
   city?: string;
   id?: string;
   center?: LatLng;
   radius?: number;
 };
-
-const endpoints = {
-  nearby: "https://restapi.amap.com/v5/place/around",
-  text: "https://restapi.amap.com/v5/place/text",
-  detail: "https://restapi.amap.com/v5/place/detail",
-} as const;
 
 export type AmapSearchArea = {
   center: LatLng;
@@ -89,35 +84,17 @@ const translatePlaces = async (places: Place[], signal?: AbortSignal): Promise<P
   });
 };
 
-const buildRequestUrl = (body: SearchRequest, key: string): URL => {
-  const url = new URL(endpoints[body.action]);
-  url.searchParams.set("key", key);
-  url.searchParams.set("output", "json");
-  if (body.action === "detail") {
-    url.searchParams.set("id", body.id ?? "");
-    url.searchParams.set("show_fields", "photos");
-    return url;
-  }
-  url.searchParams.set("keywords", body.query?.trim() ?? "");
-  url.searchParams.set("show_fields", "photos");
-  if (body.action === "text" && body.city) url.searchParams.set("region", body.city);
-  if (body.action === "nearby" && body.center) {
-    url.searchParams.set("location", `${body.center.longitude.toFixed(6)},${body.center.latitude.toFixed(6)}`);
-  }
-  if (body.action === "nearby") {
-    url.searchParams.set("radius", String(Math.min(50000, Math.max(0, Math.round(body.radius ?? 5000)))));
-  }
-  url.searchParams.set("page_size", "20");
-  return url;
-};
-
 const invoke = async (body: SearchRequest, signal?: AbortSignal): Promise<AmapResponse> => {
-  const key = import.meta.env.VITE_AMAP_WEB_SERVICE_KEY?.trim();
-  if (!key) throw new Error("VITE_AMAP_WEB_SERVICE_KEY is not configured");
-  const response = await fetch(buildRequestUrl(body, key), { signal });
-  if (!response.ok) throw new Error("AMap search is unavailable");
-  const data: AmapResponse = await response.json();
-  if (!data || data.status !== "1") throw new Error(data?.info || "AMap search is unavailable");
+  const { data, error } = await supabase.functions.invoke<AmapResponse>("amap-poi", { body, signal });
+  if (error) {
+    const response = "context" in error ? error.context : null;
+    const payload = response instanceof Response
+      ? await response.json().catch(() => null) as { error?: string } | null
+      : null;
+    throw new Error(payload?.error || error.message || "AMap search is unavailable");
+  }
+  if (!data || typeof data !== "object") throw new Error("Invalid AMap search response");
+  if (data.error) throw new Error(data.error);
   return data;
 };
 
@@ -152,10 +129,10 @@ export const searchAmapSuggestions = async (
   if (!keyword || area.signal?.aborted) return [];
   try {
     const data = await invoke(area.city
-      ? { action: "text", query: keyword, city: area.city }
-      : { action: "nearby", query: keyword, center: area.center, radius: 20000 }, area.signal);
+      ? { action: "suggest", query: keyword, city: area.city }
+      : { action: "suggest", query: keyword, center: area.center }, area.signal);
     if (area.signal?.aborted) return [];
-    const suggestions = data.pois;
+    const suggestions = data.tips;
     if (!Array.isArray(suggestions)) throw new Error("Invalid AMap suggestions response");
     const results = suggestions.flatMap((tip) => {
       const name = asText(tip.name);

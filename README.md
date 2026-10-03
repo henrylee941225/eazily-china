@@ -10,12 +10,10 @@ npm run dev
 
 Fill in the environment values before starting the app.
 
-Map, restaurant, and transfer place searches call AMap Web Service directly from
-the client. Set `VITE_AMAP_WEB_SERVICE_KEY` to a Web Service API key for local
-or controlled mobile testing. This key is embedded in the client bundle and is not suitable
-for unrestricted production distribution. The `amap-poi` Edge Function remains
-available for a later server-side deployment. Route planning calls the existing
-`amap-route` Edge Function, which needs `AMAP_WEB_SERVICE_KEY` on the backend.
+Map, restaurant, and transfer place searches call the authenticated `amap-poi` Edge Function.
+Maps requires sign-in.
+Set `AMAP_WEB_SERVICE_KEY` as a Supabase Edge Function secret. Route planning
+uses the `amap-route` Edge Function and the same backend secret.
 MapTiler renders the returned POIs and routes.
 
 For iOS and Android setup, build commands, and native configuration, see

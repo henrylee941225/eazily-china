@@ -10,6 +10,7 @@ Deno.test("nearby POI request uses the current map center and keyword", () => {
   if (url.searchParams.get("location") !== "121.473700,31.230400") throw new Error("Coordinate order is wrong");
   if (url.searchParams.get("radius") !== "12000") throw new Error("Radius was not forwarded");
   if (url.searchParams.get("page_size") !== "20") throw new Error("Page size was not forwarded");
+  if (url.searchParams.get("show_fields") !== "photos") throw new Error("POI photos were not requested");
 });
 
 Deno.test("suggestions use POI 2.0 text search with a city bias", () => {
@@ -31,7 +32,8 @@ Deno.test("suggestions without a city use POI 2.0 around the map center", () => 
 
 Deno.test("POI details use the 2.0 ID search", () => {
   const url = buildAmapRequest({ action: "detail", id: "B123" }, "test-key");
-  if (!url || url.pathname !== "/v5/place/detail" || url.searchParams.get("id") !== "B123") {
+  if (!url || url.pathname !== "/v5/place/detail" || url.searchParams.get("id") !== "B123" ||
+      url.searchParams.get("show_fields") !== "photos") {
     throw new Error("Wrong AMap detail request");
   }
 });

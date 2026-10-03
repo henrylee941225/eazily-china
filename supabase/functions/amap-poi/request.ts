@@ -33,6 +33,7 @@ export const buildAmapRequest = (body: SearchRequest, key: string): URL | null =
   const url = new URL(useNearby ? endpoints.nearby : endpoints[action]);
   url.searchParams.set("key", key);
   url.searchParams.set("output", "json");
+  url.searchParams.set("show_fields", "photos");
   if (action === "detail") {
     url.searchParams.set("id", id);
     return url;
