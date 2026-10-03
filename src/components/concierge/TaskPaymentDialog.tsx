@@ -107,6 +107,7 @@ export const TaskPaymentDialog = ({
           return;
         }
         if (!data?.client_secret) {
+
           console.error("create-task-checkout returned no client secret");
           toast.error("Couldn't start checkout");
           onOpenChange(false);
@@ -135,13 +136,13 @@ export const TaskPaymentDialog = ({
     () =>
       clientSecret
         ? {
-            clientSecret,
-            onComplete: () => {
-              setDone(true);
-              toast.success(paymentModel ? SUCCESS_COPY[paymentModel].toast : "Payment received");
-              setTimeout(() => onPaid?.(), 600);
-            },
-          }
+          clientSecret,
+          onComplete: () => {
+            setDone(true);
+            toast.success(paymentModel ? SUCCESS_COPY[paymentModel].toast : "Payment received");
+            setTimeout(() => onPaid?.(), 600);
+          },
+        }
         : undefined,
     [clientSecret, onPaid, paymentModel],
   );
