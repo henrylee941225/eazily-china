@@ -23,6 +23,7 @@ import { BottomTabBar } from "@/components/BottomTabBar";
 import { PlaceSheet } from "@/components/PlaceSheet";
 import { DrawerBranch } from "@/components/ui/non-modal-drawer";
 import { getAmapCityCode } from "@/lib/amapCities";
+import { parseSharedPlace } from "@/lib/placeShare";
 import { useCity } from "@/contexts/CityContext";
 
 type Chip = { icon: LucideIcon; label: string; query: string; glyph: string; color: string };
@@ -61,10 +62,29 @@ export default function MapTest() {
   activeChipRef.current = activeChip;
   const [isNavigating, setIsNavigating] = useState(false);
 
-  // Handle a `?q=...` deep-link: seed the search box, run the shared
-  // autocomplete, and open the top result exactly like a manual pick.
-  // If nothing is found, leave the query in the box so the user can edit.
+  // Shared coordinates open the exact place. Search links still resolve the
+  // top autocomplete result and leave the query editable when nothing matches.
   useEffect(() => {
+    const sharedPlace = parseSharedPlace(searchParams);
+    if (sharedPlace?.coordinate) {
+      const key = `place:${searchParams.toString()}`;
+      if (initialQueryRef.current === key) return;
+      initialQueryRef.current = key;
+
+      const next = new URLSearchParams(searchParams);
+      for (const param of ["lat", "lng", "name", "address"]) next.delete(param);
+      setSearchParams(next, { replace: true });
+
+      const { latitude, longitude } = sharedPlace.coordinate;
+      mapRef.current?.clearAnnotations();
+      mapRef.current?.showSinglePlace(sharedPlace, undefined, "#1A1A1A");
+      mapRef.current?.centerOn(latitude, longitude, 800);
+      setActiveChip(null);
+      setSelectedCategory(null);
+      setSelectedPlace(sharedPlace);
+      return;
+    }
+
     const q = searchParams.get("q");
     if (!q || initialQueryRef.current === q) return;
     initialQueryRef.current = q;

@@ -174,7 +174,12 @@ const ECMap = forwardRef<ECMapHandle, ECMapProps>(({ onPlaceSelect, onUserLocati
     deselectAll: () => withView((view) => view.deselectAll()),
     showRoute,
     clearRoute: () => { routeVersionRef.current++; withView((view) => view.clearRoute()); },
-    centerOn: (latitude, longitude, distance = 2000) => withView((view) => view.centerOn({ latitude, longitude }, distance)),
+    centerOn: (latitude, longitude, distance = 2000) => {
+      withView((view) => {
+        recenterOnNextLocationRef.current = false;
+        view.centerOn({ latitude, longitude }, distance);
+      });
+    },
     showSinglePlace: (place, glyphText, color) => {
       cancelSearch();
       withView((view) => view.setPlaces([place], { glyphText, color }));

@@ -42,6 +42,8 @@ import {
 } from "@/lib/navigation";
 import * as voice from "@/lib/voice";
 import { wgs84ToGcj02 } from "@/lib/geoDatum";
+import { buildPlaceShareUrl } from "@/lib/placeShare";
+import { shareLink } from "@/lib/shareLink";
 import { watchLocation } from "@/integrations/capacitor/geolocation";
 
 const SNAP_POINTS = [0.15, 0.5, 0.95];
@@ -645,8 +647,19 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onN
   const isLongAddress = displayAddress.length > 90;
   const photos = place?.photos ?? [];
 
+  const handleShare = async () => {
+    if (!place) return;
+    const outcome = await shareLink({
+      title: place.name?.trim() || "Place in eazilyChina",
+      text: place.formattedAddress?.trim() || "View this place on the map",
+      url: buildPlaceShareUrl(place),
+    });
+    if (outcome === "copied") toast("Place link copied");
+    if (outcome === "failed") toast("Couldn't share place");
+  };
+
   const renderDetails = () => (
-    <div className="px-4" style={{ paddingBottom: 96 }}>
+    <div className="px-4 pb-6">
       {/* Peek content — always visible */}
       <div>
         <h2 className="font-serif text-xl font-semibold text-ink">{place?.name ?? "Place"}</h2>
@@ -666,7 +679,7 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onN
           </button>
           <button
             type="button"
-            onClick={() => toast("Share coming soon")}
+            onClick={handleShare}
             className="flex-1 h-11 rounded-full text-sm font-semibold border border-border-strong text-ink bg-transparent flex items-center justify-center gap-1.5"
           >
             <Share2 className="h-4 w-4 shrink-0" />
@@ -903,9 +916,6 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onN
             {stepsExpanded && (
               <div
                 className="sheet-scroll flex-1 overflow-y-auto px-4 pb-4 border-t border-border min-h-0"
-                style={{
-                  paddingBottom: "calc(16px + 64px + env(safe-area-inset-bottom))",
-                }}
               >
                 {visibleSteps.map((step, i) => (
                   <div key={i} className="py-3 border-b border-border last:border-b-0">
@@ -1081,15 +1091,26 @@ export function PlaceSheet({ place, category, userCoord, mapHandle, onClose, onN
     >
       <Drawer.Portal>
         <Drawer.Content
-          className="fixed inset-x-0 bottom-0 z-40 flex flex-col rounded-t-2xl bg-surface-elevated shadow-2xl outline-none"
+          className="pb-with-nav fixed inset-x-0 bottom-0 z-40 flex flex-col rounded-t-2xl bg-surface-elevated shadow-2xl outline-none"
           style={{ height: "95vh" }}
         >
-          <div className="mx-auto mt-2 h-1.5 w-12 rounded-full bg-gray-300" />
+          <div className="relative flex h-10 shrink-0 items-center justify-center">
+            <div className="h-1.5 w-12 rounded-full bg-gray-300" />
+            <button
+              type="button"
+              onClick={() => handleOpenChange(false)}
+              aria-label="Close place details"
+              data-vaul-no-drag
+              className="absolute right-4 flex h-9 w-9 items-center justify-center rounded-full bg-surface-2 text-ink"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
           <Drawer.Title className="sr-only">{place?.name ?? "Place details"}</Drawer.Title>
           <Drawer.Description className="sr-only">
             {place?.formattedAddress ?? ""}
           </Drawer.Description>
-          <div className="mt-3 flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {view === "details" ? (
               <div className="sheet-scroll flex-1 overflow-y-auto">{renderDetails()}</div>
             ) : (

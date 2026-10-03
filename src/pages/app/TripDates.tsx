@@ -56,7 +56,7 @@ const TripDates = () => {
   };
 
   return (
-    <AppLayout title="Trip dates & details" backTo="/account" showLiveActivity={false}>
+    <AppLayout title="Trip dates & details" backTo="/account" showLiveActivity={false} hideTabBar>
       <div className="mx-auto max-w-[440px] space-y-6 pb-28">
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-secondary">

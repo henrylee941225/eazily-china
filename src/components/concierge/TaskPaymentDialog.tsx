@@ -10,7 +10,9 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
+import { isCapacitorApp } from "@/integrations/capacitor";
+import { invokeFn } from "@/lib/invokeFn";
+import { getTaskCheckoutReturnUrl } from "@/lib/taskCheckout";
 
 const PUBLISHABLE_KEY = (import.meta as { env?: Record<string, string | undefined> }).env
   ?.VITE_PAYMENTS_CLIENT_TOKEN;
@@ -62,9 +64,8 @@ const SUCCESS_COPY: Record<"hold" | "prepaid", { title: string; body: string; to
 };
 
 /**
- * In-app Stripe Embedded Checkout for a concierge task. Sandbox-only
- * environment selection is derived from the publishable token prefix
- * never routes to live automatically.
+ * In-app Stripe Embedded Checkout for a concierge task. The publishable key
+ * declares the expected mode; the server validates it against the origin.
  */
 export const TaskPaymentDialog = ({
   open, onOpenChange, taskId, amountLabel, onPaid, note, heading, lines, subline, successBody, paymentModel,
@@ -90,15 +91,23 @@ export const TaskPaymentDialog = ({
     (async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke("create-task-checkout", {
-          body: {
+        const { data, error } = await invokeFn<{ client_secret: string; env?: string }>(
+          "create-task-checkout",
+          {
             task_id: taskId,
-            return_url: `${window.location.origin}/bookings/${taskId}`,
+            return_url: getTaskCheckoutReturnUrl(taskId, window.location.origin, isCapacitorApp()),
             environment: PUBLISHABLE_KEY?.startsWith("pk_live_") ? "live" : "sandbox",
           },
-        });
+        );
         if (cancelled) return;
-        if (error || !data?.client_secret) {
+        if (error) {
+          console.error("create-task-checkout failed", error);
+          toast.error(error.status && error.status < 500 ? error.message : "Couldn't start checkout");
+          onOpenChange(false);
+          return;
+        }
+        if (!data?.client_secret) {
+          console.error("create-task-checkout returned no client secret");
           toast.error("Couldn't start checkout");
           onOpenChange(false);
           return;
@@ -134,7 +143,7 @@ export const TaskPaymentDialog = ({
             },
           }
         : undefined,
-    [clientSecret, onPaid],
+    [clientSecret, onPaid, paymentModel],
   );
 
   return (

@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { Capacitor } from "@capacitor/core";
-import { Share } from "@capacitor/share";
 import { Bookmark, Share2, AlertCircle, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft } from "lucide-react";
@@ -11,31 +9,10 @@ import {
   getTopic,
 } from "@/content/guides";
 import { toast } from "sonner";
+import { shareLink } from "@/lib/shareLink";
 
 const SAVED_KEY = "ezc_saved_guides";
 const SHARE_BASE_URL = "https://app.eazilychina.com";
-
-const copyLink = async (url: string): Promise<boolean> => {
-  try {
-    await navigator.clipboard.writeText(url);
-    return true;
-  } catch {
-    const input = document.createElement("textarea");
-    input.value = url;
-    input.style.position = "fixed";
-    input.style.opacity = "0";
-    document.body.appendChild(input);
-    input.select();
-    const copied = document.execCommand("copy");
-    input.remove();
-    return copied;
-  }
-};
-
-const isShareCancelled = (error: unknown): boolean => {
-  const value = error as { name?: string; message?: string } | null;
-  return value?.name === "AbortError" || /cancel/i.test(value?.message ?? "");
-};
 
 const readSaved = (): string[] => {
   try {
@@ -80,24 +57,9 @@ const GuideArticle = () => {
 
   const handleShare = async () => {
     const url = `${SHARE_BASE_URL}/guides/${guide.topicSlug}/${guide.slug}`;
-    const payload = { title: guide.title, text: guide.lede, url };
-    try {
-      if (Capacitor.isNativePlatform()) {
-        await Share.share(payload);
-        return;
-      }
-      if (navigator.share) {
-        await navigator.share(payload);
-        return;
-      }
-    } catch (error) {
-      if (isShareCancelled(error)) return;
-    }
-    try {
-      toast(await copyLink(url) ? "Link copied" : "Couldn't share link");
-    } catch {
-      toast("Couldn't share link");
-    }
+    const outcome = await shareLink({ title: guide.title, text: guide.lede, url });
+    if (outcome === "copied") toast("Link copied");
+    if (outcome === "failed") toast("Couldn't share link");
   };
 
   return (

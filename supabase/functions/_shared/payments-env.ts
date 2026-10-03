@@ -7,7 +7,7 @@
 // Origin:
 //
 //   production web origins + native app shells -> live
-//   Lovable preview / localhost origins        -> sandbox
+//   Lovable preview / local dev origins        -> sandbox
 //   anything else                              -> rejected
 //
 // Nothing in the request body, no header the client invents, and no client
@@ -26,7 +26,8 @@ const LIVE_ORIGIN_PATTERNS: RegExp[] = [
   /^https:\/\/app\.eazilychina\.com$/,
   /^https:\/\/(www\.)?eazilychina\.com$/,
   /^https:\/\/eazilychina\.lovable\.app$/,
-  // Native iOS/Android shells (Median). These wrap the PRODUCTION build.
+  // Native iOS/Android shells (Capacitor and Median) wrap the production build.
+  /^https:\/\/localhost$/,
   /^capacitor:\/\/localhost$/,
   /^ionic:\/\/localhost$/,
   /^file:\/\/(localhost)?$/,
@@ -40,8 +41,9 @@ const SANDBOX_ORIGIN_PATTERNS: RegExp[] = [
   /^https:\/\/preview--[a-z0-9-]+\.lovable\.app$/,
   /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/,
   /^https:\/\/([a-z0-9-]+\.)*lovable\.dev$/,
-  // Local development.
-  /^https?:\/\/localhost(:\d+)?$/,
+  // Local development uses HTTP or an explicit HTTPS dev-server port.
+  /^http:\/\/localhost(:\d+)?$/,
+  /^https:\/\/localhost:\d+$/,
   /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
 ];
 
